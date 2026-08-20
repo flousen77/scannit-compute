@@ -1,3 +1,5 @@
+'use client';
+
 export default function Navbar({ openModal }) {
   return (
     <>
@@ -8,7 +10,7 @@ export default function Navbar({ openModal }) {
             <span>Scannit <span className="sub-brand"></span></span>
           </a>
           <div className="nav-actions">
-            <a href="/invest" className="investor-link">
+            <a href="/node" className="investor-link">
               <i className="fas fa-network-wired"></i> Network & Yield
             </a>
             <button onClick={openModal} className="btn btn-primary btn-nav">
