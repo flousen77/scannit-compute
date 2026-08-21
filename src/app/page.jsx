@@ -263,12 +263,10 @@ const handleSubmit = async (e) => {
               <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '20px', color: 'white' }}>NVIDIA RTX 6000 Pro</h3>
               <table className="spec-table">
                 <tbody>
-                  <tr><th>GPU Config.</th><td>8x RTX PRO 6000 Ada</td></tr>
-                  <tr><th>Total VRAM</th><td>384 GB GDDR6 ECC</td></tr>
-                  <tr><th>CPU Arch.</th><td>Dual Intel Xeon Silver 4416+</td></tr>
+                  <tr><th>GPU Config.</th><td>8x RTX PRO 6000 Server Edition</td></tr>
+                  <tr><th>Total VRAM</th><td>768 GB GDDR6 ECC</td></tr>
+                  <tr><th>CPU Arch.</th><td>Intel based 64 Core 6th Gen</td></tr>
                   <tr><th>Sys. Memory</th><td>768 GB DDR5 6400 MT/s ECC</td></tr>
-                  <tr><th>Storage</th><td>9.6 TB Total NVMe (U.2)</td></tr>
-                  <tr><th>Networking</th><td>200 GbE ConnectX-6</td></tr>
                 </tbody>
               </table>
             </div>
@@ -281,8 +279,7 @@ const handleSubmit = async (e) => {
                   <tr><th>Total VRAM</th><td>1,536 GB Total (192GB ea)</td></tr>
                   <tr><th>CPU Arch.</th><td>Dual Intel 8570 Processors</td></tr>
                   <tr><th>Sys. Memory</th><td>2048 GB DDR5-6400 RDIMM</td></tr>
-                  <tr><th>Storage</th><td>30.7 TB NVMe (8x 3.84TB U.3)</td></tr>
-                  <tr><th>Networking</th><td>8x 400GbE OSFP PCIe 5.0</td></tr>
+                  <tr><th>Networking</th><td>400 Gb/s InfiniBand Interconnect</td></tr>
                 </tbody>
               </table>
             </div>
@@ -295,8 +292,7 @@ const handleSubmit = async (e) => {
                   <tr><th>Total VRAM</th><td>2,304 GB Total</td></tr>
                   <tr><th>CPU Arch.</th><td>Dual Intel Xeon 6767P</td></tr>
                   <tr><th>Sys. Memory</th><td>3072 GB DDR5 @ 6400 MHz</td></tr>
-                  <tr><th>Storage</th><td>30 TB NVMe SSD</td></tr>
-                  <tr><th>Networking</th><td>NVLink 5 (1.8 TB/s)</td></tr>
+                  <tr><th>Networking</th><td>800 Gb/s Quantum-X800 InfiniBand</td></tr>
                 </tbody>
               </table>
             </div>
@@ -330,9 +326,9 @@ const handleSubmit = async (e) => {
                     <label>Hardware Selection</label>
                     <select name="hardware" required>
                       <option value="">Select Configuration...</option>
-                      <option value="rtx">NVIDIA RTX 6000 Pro Array</option>
-                      <option value="b200">NVIDIA HGX B200 Cluster</option>
-                      <option value="b300">NVIDIA B300 Ultra</option>
+                      <option value="rtx">NVIDIA RTX 6000 Pro Server Edition</option>
+                      <option value="b200">NVIDIA HGX B200 </option>
+                      <option value="b300">NVIDIA B300 </option>
                     </select>
                   </div>
                   <div className="form-group">

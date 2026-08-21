@@ -4,7 +4,7 @@ export default function RevenueArchitecture() {
   return (
     <section className="py-24 bg-white border-t border-slate-200 relative z-10 px-5">
       
-      {/* Lokales CSS: Perfekte mathematische Endlos-Schleife von 100 bis 0 */}
+      {/* CSS: Perfect mathematical infinite loop from 100 to 0 */}
       <style>{`
         @keyframes topoFlow {
           from { stroke-dashoffset: 100; }
@@ -21,115 +21,122 @@ export default function RevenueArchitecture() {
           </p>
         </div>
 
-        {/* SVG TOPOLOGY DIAGRAM */}
-        <div className="hidden md:block relative w-full max-w-5xl mx-auto mb-20" style={{ aspectRatio: '2.2 / 1' }}>
+        {/* ==========================================
+            SVG TOPOLOGY DIAGRAM
+            MOBILE FIX: Added a wrapper for horizontal scrolling
+            ========================================== */}
+        
+        {/* Mobile scrollable wrapper (allows swiping left/right on small screens) */}
+        <div className="w-full overflow-x-auto pb-8 mb-12 md:pb-0 md:mb-20" style={{ WebkitOverflowScrolling: 'touch' }}>
           
-          {/* SVG Canvas for Data Paths */}
-          <svg viewBox="0 0 1000 450" className="absolute inset-0 w-full h-full z-0 pointer-events-none" preserveAspectRatio="xMidYMid meet">
+          {/* Inner container: Forces a minimum width of 800px on mobile to prevent the diagram from squishing */}
+          <div className="relative min-w-[800px] md:min-w-0 w-full max-w-5xl mx-auto" style={{ aspectRatio: '2.2 / 1' }}>
             
-            {/* --- GRAUE BASIS-SCHIENEN --- */}
-            <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M120 225 L280 225" />
+            {/* SVG Canvas for Data Paths */}
+            <svg viewBox="0 0 1000 450" className="absolute inset-0 w-full h-full z-0 pointer-events-none" preserveAspectRatio="xMidYMid meet">
+              
+              {/* --- GRAY BASE RAILS --- */}
+              <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M120 225 L280 225" />
+              
+              {/* Top Route Base */}
+              <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M320 225 C450 225, 450 100, 550 100" />
+              <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M650 100 C780 100, 780 225, 850 225" />
+              
+              {/* Bottom Route Base */}
+              <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M320 225 C450 225, 450 350, 550 350" />
+              <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M650 350 C780 350, 780 225, 850 225" />
+
+
+              {/* --- ANIMATED PACKETS --- */}
+              {/* 1. Cyan moves UP (0s) */}
+              <path 
+                d="M120 225 L320 225 C450 225, 450 100, 550 100 L650 100 C780 100, 780 225, 850 225" 
+                className="fill-none stroke-[#06b6d4] stroke-[3px] stroke-linecap-round"
+                pathLength="100"
+                style={{ 
+                  strokeDasharray: '4 96', 
+                  animation: 'topoFlow 3s linear infinite',
+                  filter: 'drop-shadow(0 0 4px rgba(6,182,212,0.6))'
+                }} 
+              />
+
+              {/* 2. Gray moves DOWN (0.75s) */}
+              <path 
+                d="M120 225 L320 225 C450 225, 450 350, 550 350 L650 350 C780 350, 780 225, 850 225" 
+                className="fill-none stroke-[#64748b] stroke-[3px] stroke-linecap-round"
+                pathLength="100"
+                style={{ 
+                  strokeDasharray: '4 96', 
+                  animation: 'topoFlow 3s linear infinite 0.75s'
+                }} 
+              />
+
+              {/* 3. Cyan moves DOWN (1.5s) */}
+              <path 
+                d="M120 225 L320 225 C450 225, 450 350, 550 350 L650 350 C780 350, 780 225, 850 225" 
+                className="fill-none stroke-[#06b6d4] stroke-[3px] stroke-linecap-round"
+                pathLength="100"
+                style={{ 
+                  strokeDasharray: '4 96', 
+                  animation: 'topoFlow 3s linear infinite 1.5s',
+                  filter: 'drop-shadow(0 0 4px rgba(6,182,212,0.6))'
+                }} 
+              />
+
+              {/* 4. Gray moves UP (2.25s) */}
+              <path 
+                d="M120 225 L320 225 C450 225, 450 100, 550 100 L650 100 C780 100, 780 225, 850 225" 
+                className="fill-none stroke-[#64748b] stroke-[3px] stroke-linecap-round"
+                pathLength="100"
+                style={{ 
+                  strokeDasharray: '4 96', 
+                  animation: 'topoFlow 3s linear infinite 2.25s'
+                }} 
+              />
+            </svg>
+
+            {/* Overlay HTML Nodes */}
             
-            {/* Top Route Base */}
-            <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M320 225 C450 225, 450 100, 550 100" />
-            <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M650 100 C780 100, 780 225, 850 225" />
-            
-            {/* Bottom Route Base */}
-            <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M320 225 C450 225, 450 350, 550 350" />
-            <path className="stroke-[#e2e8f0] stroke-2 fill-none" d="M650 350 C780 350, 780 225, 850 225" />
-
-
-            {/* --- ANIMIERTE ZÜGE (PACKETS) --- */}
-            {/* 4 Pakete, versetzt um 0.75s, teilen sich abwechselnd auf Top und Bottom auf */}
-            
-            {/* 1. Cyan fährt nach OBEN (0s) */}
-            <path 
-              d="M120 225 L320 225 C450 225, 450 100, 550 100 L650 100 C780 100, 780 225, 850 225" 
-              className="fill-none stroke-[#06b6d4] stroke-[3px] stroke-linecap-round"
-              pathLength="100"
-              style={{ 
-                strokeDasharray: '4 96', 
-                animation: 'topoFlow 3s linear infinite',
-                filter: 'drop-shadow(0 0 4px rgba(6,182,212,0.6))'
-              }} 
-            />
-
-            {/* 2. Grau fährt nach UNTEN (0.75s) */}
-            <path 
-              d="M120 225 L320 225 C450 225, 450 350, 550 350 L650 350 C780 350, 780 225, 850 225" 
-              className="fill-none stroke-[#64748b] stroke-[3px] stroke-linecap-round"
-              pathLength="100"
-              style={{ 
-                strokeDasharray: '4 96', 
-                animation: 'topoFlow 3s linear infinite 0.75s'
-              }} 
-            />
-
-            {/* 3. Cyan fährt nach UNTEN (1.5s) */}
-            <path 
-              d="M120 225 L320 225 C450 225, 450 350, 550 350 L650 350 C780 350, 780 225, 850 225" 
-              className="fill-none stroke-[#06b6d4] stroke-[3px] stroke-linecap-round"
-              pathLength="100"
-              style={{ 
-                strokeDasharray: '4 96', 
-                animation: 'topoFlow 3s linear infinite 1.5s',
-                filter: 'drop-shadow(0 0 4px rgba(6,182,212,0.6))'
-              }} 
-            />
-
-            {/* 4. Grau fährt nach OBEN (2.25s) */}
-            <path 
-              d="M120 225 L320 225 C450 225, 450 100, 550 100 L650 100 C780 100, 780 225, 850 225" 
-              className="fill-none stroke-[#64748b] stroke-[3px] stroke-linecap-round"
-              pathLength="100"
-              style={{ 
-                strokeDasharray: '4 96', 
-                animation: 'topoFlow 3s linear infinite 2.25s'
-              }} 
-            />
-          </svg>
-
-          {/* Overlay HTML Nodes */}
-          
-          <div className="absolute bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '12%', top: '50%', width: '140px' }}>
-            <div className="text-[0.65rem] font-bold text-slate-500 uppercase mb-1">Compute Source</div>
-            <i className="fas fa-microchip text-slate-400 text-xl my-2"></i>
-            <div className="text-xs font-bold text-slate-900 mt-1">Bare-Metal GPU</div>
-          </div>
-
-          <div className="absolute bg-white border border-slate-200 rounded-full shadow-sm flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 w-[90px] h-[90px]" style={{ left: '30%', top: '50%' }}>
-            <div className="text-[0.65rem] font-bold text-slate-500 uppercase mb-1">Router</div>
-            <div className="w-8 h-8 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center text-[#06b6d4] text-sm shadow-inner">
-              <i className="fas fa-random"></i>
+            <div className="absolute bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '12%', top: '50%', width: '140px' }}>
+              <div className="text-[0.65rem] font-bold text-slate-500 uppercase mb-1">Compute Source</div>
+              <i className="fas fa-microchip text-slate-400 text-xl my-2"></i>
+              <div className="text-xs font-bold text-slate-900 mt-1">Bare-Metal GPU</div>
             </div>
-          </div>
 
-          <div className="absolute bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '60%', top: '22.2%', width: '220px' }}>
-            <div className="text-[0.65rem] font-bold text-[#06b6d4] uppercase">Primary Route</div>
-            <div className="flex items-center gap-3 mt-2">
-              <div className="w-8 h-8 rounded bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500"><i className="fas fa-building"></i></div>
-              <div className="text-left">
-                <div className="text-xs font-bold text-slate-900">Enterprise Leases</div>
-                <div className="text-[0.7rem] text-slate-500 font-mono mt-0.5">B2B Contracts</div>
+            <div className="absolute bg-white border border-slate-200 rounded-full shadow-sm flex flex-col items-center justify-center -translate-x-1/2 -translate-y-1/2 w-[90px] h-[90px]" style={{ left: '30%', top: '50%' }}>
+              <div className="text-[0.65rem] font-bold text-slate-500 uppercase mb-1">Router</div>
+              <div className="w-8 h-8 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center text-[#06b6d4] text-sm shadow-inner">
+                <i className="fas fa-random"></i>
               </div>
             </div>
-          </div>
 
-          <div className="absolute bg-white border border-dashed border-slate-300 rounded-xl shadow-sm flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '60%', top: '77.7%', width: '220px' }}>
-            <div className="text-[0.65rem] font-bold text-slate-500 uppercase">Fallback Route</div>
-            <div className="flex items-center gap-3 mt-2">
-              <div className="w-8 h-8 rounded bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500"><i className="fas fa-network-wired"></i></div>
-              <div className="text-left">
-                <div className="text-xs font-bold text-slate-900">Spot Buffer</div>
-                <div className="text-[0.7rem] text-slate-500 font-mono mt-0.5">Targon, Render, Vast</div>
+            <div className="absolute bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '60%', top: '22.2%', width: '220px' }}>
+              <div className="text-[0.65rem] font-bold text-[#06b6d4] uppercase">Primary Route</div>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="w-8 h-8 rounded bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500"><i className="fas fa-building"></i></div>
+                <div className="text-left">
+                  <div className="text-xs font-bold text-slate-900">Enterprise Leases</div>
+                  <div className="text-[0.7rem] text-slate-500 font-mono mt-0.5">B2B Contracts</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="absolute bg-slate-900 border border-slate-800 rounded-xl flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '90%', top: '50%', width: '180px', boxShadow: '0 15px 35px rgba(0,0,0,0.15)' }}>
-            <img src="https://imagedelivery.net/Ulul0QO-cXqPUi6uJcNN5g/a3924725-4e64-4885-0779-1aae85136500/public" alt="Scannit Logo" className="h-6 w-auto mb-3 opacity-90 mx-auto" style={{ maxWidth: '120px' }} />
-            <div className="text-white font-bold text-sm tracking-wide leading-tight">Scannit Revenue<br />Engine</div>
-            <div className="text-cyan-400 font-mono text-[0.65rem] mt-3 bg-[#06b6d4]/15 px-2 py-1 rounded">100% UTILIZATION</div>
+            <div className="absolute bg-white border border-dashed border-slate-300 rounded-xl shadow-sm flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '60%', top: '77.7%', width: '220px' }}>
+              <div className="text-[0.65rem] font-bold text-slate-500 uppercase">Fallback Route</div>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="w-8 h-8 rounded bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500"><i className="fas fa-network-wired"></i></div>
+                <div className="text-left">
+                  <div className="text-xs font-bold text-slate-900">Spot Buffer</div>
+                  <div className="text-[0.7rem] text-slate-500 font-mono mt-0.5">Targon, Render, Vast</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute bg-slate-900 border border-slate-800 rounded-xl flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '90%', top: '50%', width: '180px', boxShadow: '0 15px 35px rgba(0,0,0,0.15)' }}>
+              <img src="https://imagedelivery.net/Ulul0QO-cXqPUi6uJcNN5g/a3924725-4e64-4885-0779-1aae85136500/public" alt="Scannit Logo" className="h-6 w-auto mb-3 opacity-90 mx-auto" style={{ maxWidth: '120px' }} />
+              <div className="text-white font-bold text-sm tracking-wide leading-tight">Scannit Revenue<br />Engine</div>
+              <div className="text-cyan-400 font-mono text-[0.65rem] mt-3 bg-[#06b6d4]/15 px-2 py-1 rounded">100% UTILIZATION</div>
+            </div>
           </div>
         </div>
 

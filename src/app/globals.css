@@ -287,3 +287,47 @@ footer { padding: 80px 0 60px 0; border-top: 1px solid var(--glass-border); posi
   right: -10%;
   opacity: 0.04; /* Barely visible */
 }
+/* ==========================================
+   MOBILE & TABLET OPTIMIZATION (ULTRA-CLEAN HEADER)
+   (Modified for iPad and larger mobile views)
+   ========================================== */
+
+/* 1. Hero top padding adjustment (already correct) */
+.hero, .hero-section, .hero-container, main > section:first-of-type {
+  padding-top: 2rem !important;
+}
+
+@media (min-width: 1024px) { /* Restore desktop air for larger screens */
+  .hero, .hero-section, .hero-container, main > section:first-of-type {
+    padding-top: 8rem !important;
+  }
+}
+
+/* 2. Ultra-compact Header for Mobile & Tablets up to 1024px */
+@media (max-width: 1024px) {
+  /* Hide the Nav Button (Reserve Compute) to save crucial space */
+  .btn-nav {
+    display: none !important;
+  }
+
+  /* Compact Navbar Actions container */
+  .nav-actions {
+    display: flex !important;
+    align-items: center;
+    gap: 4px !important; /* Extremely tight gap */
+  }
+
+  /* Ultra-compact Pill styling (Network & Yield) */
+  .investor-link {
+    display: inline-flex !important;
+    font-size: 11px !important; /* Even smaller font */
+    padding: 5px 8px !important; /* Even tighter padding */
+    white-space: nowrap;
+    line-height: 1.1; /* Tighter line height for the text inside */
+  }
+
+  /* Make the Logo slightly smaller on all mobile devices and tablets */
+  .logo-img {
+    height: 24px !important; /* Smaller logo for tight spaces */
+  }
+}
