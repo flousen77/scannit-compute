@@ -42,7 +42,7 @@ export default function EarningsDashboard({ clustersWithData }) {
         </button>
       </div>
 
-      {clustersWithData.map(({ cluster, earnings, nodes, onboardedAt, error }) => (
+      {clustersWithData.map(({ cluster, earnings, nodes, dailySeries, onboardedAt, error }) => (
         <ClusterCard
           key={`${cluster.id}:${JSON.stringify(cluster)}`}
           cluster={cluster}
@@ -50,6 +50,7 @@ export default function EarningsDashboard({ clustersWithData }) {
           initialWindow="24h"
           initialEarnings={earnings}
           initialNodes={nodes}
+          dailySeries={dailySeries}
           initialError={error}
           onEdit={() => setFormTarget(cluster)}
           onDelete={() => handleDelete(cluster)}

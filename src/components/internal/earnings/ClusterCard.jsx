@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import EarningsStat from './EarningsStat';
+import EarningsSparkline from './EarningsSparkline';
 import TimeWindowToggle from './TimeWindowToggle';
 import { getWindowConfig } from '@/lib/internal/windows';
 import {
@@ -73,7 +74,7 @@ function WindowBadge({ activeWindow }) {
 // the two — both feed it an earnings-per-GPU-per-hour figure, however derived.
 function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount, cost, loading }) {
   const {
-    earningsPerMonthProjectedPerGpu: earningsPerMonthProjected,
+    revenuePerMonthProjectedTotal: earningsPerMonthProjected,
     costPerGpuPerHour,
     profitPerGpuPerHour,
     marginPercent,
@@ -137,7 +138,7 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
   );
 }
 
-function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarnings, initialNodes, initialError, onEdit, onDelete }) {
+function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarnings, initialNodes, dailySeries, initialError, onEdit, onDelete }) {
   const [activeWindow, setActiveWindow] = useState(initialWindow);
   const [earnings, setEarnings] = useState(initialEarnings);
   const [nodes, setNodes] = useState(initialNodes);
@@ -192,6 +193,8 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
         />
       </ClusterHeader>
 
+      <EarningsSparkline series={dailySeries} />
+
       {error && (
         <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
           {error}
@@ -236,7 +239,7 @@ function ContractClusterCard({ cluster, onEdit, onDelete }) {
       : null;
 
   const {
-    earningsPerMonthProjectedPerGpu: revenuePerMonthProjected,
+    revenuePerMonthProjectedTotal: revenuePerMonthProjected,
     profitPerGpuPerHour,
     marginPercent,
     profitPerMonthProjected,

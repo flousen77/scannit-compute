@@ -51,3 +51,8 @@ export function getEarnings(uid, range) {
 export function getNodes(uid, range) {
   return vpsFetch(`/api/uids/${encodeURIComponent(uid)}/nodes?${buildRangeQuery(range)}`);
 }
+
+export function getDailyEarnings(uid, days = 30) {
+  const params = new URLSearchParams({ days: String(days) });
+  return vpsFetch(`/api/uids/${encodeURIComponent(uid)}/daily-earnings?${params.toString()}`);
+}

@@ -1,5 +1,5 @@
 import { listClusters } from '@/lib/internal/clusterStore';
-import { getEarnings, getNodes, getUids } from '@/lib/internal/vpsClient';
+import { getEarnings, getNodes, getUids, getDailyEarnings } from '@/lib/internal/vpsClient';
 import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
 import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard';
 import PortfolioTotalsBar from '@/components/internal/earnings/PortfolioTotalsBar';
@@ -8,7 +8,7 @@ const INITIAL_WINDOW = '24h';
 
 async function loadClusterData(cluster, uidRecords) {
   if (cluster.hostingMode !== 'subnet') {
-    return { earnings: null, nodes: null, onboardedAt: null, error: null };
+    return { earnings: null, nodes: null, dailySeries: null, onboardedAt: null, error: null };
   }
 
   const uidRecord = uidRecords.find(
@@ -16,14 +16,20 @@ async function loadClusterData(cluster, uidRecords) {
   );
   const onboardedAt = uidRecord?.onboarded_at ?? null;
 
+  // Independent of the earnings/nodes fetch below — a sparkline fetch failure
+  // shouldn't take down the card's primary earnings display.
+  const dailySeries = await getDailyEarnings(cluster.subnet.uidNumber, 30)
+    .then((data) => data.series)
+    .catch(() => null);
+
   try {
     const [earnings, nodes] = await Promise.all([
       getEarnings(cluster.subnet.uidNumber, { window: INITIAL_WINDOW }),
       getNodes(cluster.subnet.uidNumber, { window: INITIAL_WINDOW }),
     ]);
-    return { earnings, nodes, onboardedAt, error: null };
+    return { earnings, nodes, dailySeries, onboardedAt, error: null };
   } catch (error) {
-    return { earnings: null, nodes: null, onboardedAt, error: error.message };
+    return { earnings: null, nodes: null, dailySeries, onboardedAt, error: error.message };
   }
 }
 
