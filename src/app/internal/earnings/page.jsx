@@ -1,28 +1,23 @@
-import { getClusters } from '@/lib/internal/clusters';
+import { listClusters } from '@/lib/internal/clusterStore';
 import { getEarnings, getNodes, getUids } from '@/lib/internal/vpsClient';
-import ClusterCard from '@/components/internal/earnings/ClusterCard';
+import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard';
 
 const INITIAL_WINDOW = '24h';
 
 async function loadClusterData(cluster, uidRecords) {
-  if (cluster.hostingMode !== 'subnet' || !cluster.subnet?.uid) {
-    return {
-      earnings: null,
-      nodes: null,
-      onboardedAt: null,
-      error: 'No subnet UID configured for this cluster.',
-    };
+  if (cluster.hostingMode !== 'subnet') {
+    return { earnings: null, nodes: null, onboardedAt: null, error: null };
   }
 
   const uidRecord = uidRecords.find(
-    (u) => String(u.uid_number) === String(cluster.subnet.uid)
+    (u) => String(u.uid_number) === String(cluster.subnet.uidNumber)
   );
   const onboardedAt = uidRecord?.onboarded_at ?? null;
 
   try {
     const [earnings, nodes] = await Promise.all([
-      getEarnings(cluster.subnet.uid, { window: INITIAL_WINDOW }),
-      getNodes(cluster.subnet.uid, { window: INITIAL_WINDOW }),
+      getEarnings(cluster.subnet.uidNumber, { window: INITIAL_WINDOW }),
+      getNodes(cluster.subnet.uidNumber, { window: INITIAL_WINDOW }),
     ]);
     return { earnings, nodes, onboardedAt, error: null };
   } catch (error) {
@@ -31,7 +26,7 @@ async function loadClusterData(cluster, uidRecords) {
 }
 
 export default async function InternalEarningsPage() {
-  const clusters = getClusters();
+  const clusters = await listClusters();
   const uidRecords = await getUids().catch(() => []);
   const clustersWithData = await Promise.all(
     clusters.map(async (cluster) => ({
@@ -55,19 +50,7 @@ export default async function InternalEarningsPage() {
           </form>
         </div>
 
-        <div className="space-y-4">
-          {clustersWithData.map(({ cluster, earnings, nodes, onboardedAt, error }) => (
-            <ClusterCard
-              key={cluster.id}
-              cluster={cluster}
-              onboardedAt={onboardedAt}
-              initialWindow={INITIAL_WINDOW}
-              initialEarnings={earnings}
-              initialNodes={nodes}
-              initialError={error}
-            />
-          ))}
-        </div>
+        <EarningsDashboard clustersWithData={clustersWithData} />
       </div>
     </div>
   );
