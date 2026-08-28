@@ -1,30 +1,8 @@
-import fs from 'fs/promises';
-import path from 'path';
 import crypto from 'crypto';
 import { SUBNET_PLATFORMS, COST_MODES } from './clusterOptions';
-
-// Local JSON file storage for the internal team only. TODO: swap for a
-// shared store (e.g. Vercel KV) before this needs to run multi-instance
-// or survive ephemeral/serverless deploys.
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'internal-clusters.json');
+import { readClusters, writeClusters } from './clusterStorage';
 
 const COST_MODE_VALUES = COST_MODES.map((m) => m.value);
-
-async function readAll() {
-  try {
-    const raw = await fs.readFile(DATA_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    throw error;
-  }
-}
-
-async function writeAll(clusters) {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(DATA_FILE, JSON.stringify(clusters, null, 2));
-}
 
 function normalizeCost(cost) {
   if (!cost) return null;
@@ -70,13 +48,21 @@ function normalizeClusterInput(input) {
     if (!Number.isFinite(pricePerHourUsd) || pricePerHourUsd < 0) {
       throw new Error('contract.pricePerHourUsd must be a non-negative number');
     }
+    const cardCount = Number(input.contract?.cardCount);
+    if (!Number.isInteger(cardCount) || cardCount < 1) {
+      throw new Error('contract.cardCount must be a positive integer');
+    }
+    const onboardedAt = String(input.contract?.onboardedAt || '').trim();
+    if (!onboardedAt) {
+      throw new Error('contract.onboardedAt is required');
+    }
 
     return {
       name,
       computeType,
       hostingMode: 'contract',
       subnet: null,
-      contract: { pricePerHourUsd },
+      contract: { pricePerHourUsd, cardCount, onboardedAt },
       cost: normalizeCost(input.cost),
     };
   }
@@ -85,33 +71,33 @@ function normalizeClusterInput(input) {
 }
 
 export async function listClusters() {
-  return readAll();
+  return readClusters();
 }
 
 export async function createCluster(input) {
   const normalized = normalizeClusterInput(input);
-  const clusters = await readAll();
+  const clusters = await readClusters();
   const cluster = { id: crypto.randomUUID(), ...normalized };
   clusters.push(cluster);
-  await writeAll(clusters);
+  await writeClusters(clusters);
   return cluster;
 }
 
 export async function updateCluster(id, input) {
   const normalized = normalizeClusterInput(input);
-  const clusters = await readAll();
+  const clusters = await readClusters();
   const index = clusters.findIndex((c) => c.id === id);
   if (index === -1) return null;
 
   clusters[index] = { id, ...normalized };
-  await writeAll(clusters);
+  await writeClusters(clusters);
   return clusters[index];
 }
 
 export async function deleteCluster(id) {
-  const clusters = await readAll();
+  const clusters = await readClusters();
   const next = clusters.filter((c) => c.id !== id);
   if (next.length === clusters.length) return false;
-  await writeAll(next);
+  await writeClusters(next);
   return true;
 }

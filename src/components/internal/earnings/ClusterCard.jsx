@@ -4,6 +4,11 @@ import { useState } from 'react';
 import EarningsStat from './EarningsStat';
 import TimeWindowToggle from './TimeWindowToggle';
 import { getWindowConfig } from '@/lib/internal/windows';
+import {
+  deriveSubnetEarnings,
+  deriveContractEarnings,
+  computeProfitMetrics,
+} from '@/lib/internal/clusterEarnings';
 
 const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 });
 const usdFmt = new Intl.NumberFormat('en-US', {
@@ -11,13 +16,6 @@ const usdFmt = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   maximumFractionDigits: 2,
 });
-
-const HOURS_PER_MONTH = 720;
-
-function getCostPerGpuPerHour(cost) {
-  if (!cost) return null;
-  return cost.mode === 'per_hour' ? cost.value : cost.value / HOURS_PER_MONTH;
-}
 
 function buildRangeQuery(windowValue, onboardedAt) {
   return windowValue === 'all'
@@ -53,6 +51,89 @@ function ClusterHeader({ cluster, children, onEdit, onDelete }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function WindowBadge({ activeWindow }) {
+  const windowConfig = getWindowConfig(activeWindow);
+  return (
+    <span
+      className={`text-xs font-mono uppercase tracking-wide rounded-full px-3 py-1 border ${
+        activeWindow === '24h'
+          ? 'text-[#06b6d4] border-[#06b6d4]/30 bg-[#06b6d4]/10'
+          : 'text-[#94a3b8] border-white/10'
+      }`}
+    >
+      {windowConfig.badgeLabel}
+    </span>
+  );
+}
+
+// Shared by subnet and contract cards so cost/profit math can't drift between
+// the two — both feed it an earnings-per-GPU-per-hour figure, however derived.
+function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount, cost, loading }) {
+  const {
+    earningsPerMonthProjectedPerGpu: earningsPerMonthProjected,
+    costPerGpuPerHour,
+    profitPerGpuPerHour,
+    marginPercent,
+    profitPerMonthProjected,
+  } = computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost });
+
+  return (
+    <>
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${
+          loading ? 'opacity-50' : ''
+        }`}
+      >
+        <EarningsStat
+          label="TAO Earned"
+          value={taoEarned != null ? numberFmt.format(taoEarned) : '—'}
+          unit={taoEarned != null ? 'TAO' : undefined}
+        />
+        <EarningsStat label="USD Realized" value={usdFmt.format(usdRealized)} accent />
+        <EarningsStat
+          label="Earnings / hr"
+          value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
+          unit="/hr"
+        />
+        <EarningsStat
+          label="Earnings / Mo (Projected)"
+          value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
+          unit="/mo"
+        />
+      </div>
+
+      {cost && (
+        <div
+          className={`grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/10 transition-opacity ${
+            loading ? 'opacity-50' : ''
+          }`}
+        >
+          <EarningsStat
+            label="Cost / hr"
+            value={costPerGpuPerHour != null ? usdFmt.format(costPerGpuPerHour) : '—'}
+            unit="/hr"
+          />
+          <EarningsStat
+            label="Profit / hr"
+            value={profitPerGpuPerHour != null ? usdFmt.format(profitPerGpuPerHour) : '—'}
+            unit="/hr"
+          />
+          <EarningsStat
+            label="Margin %"
+            value={marginPercent != null ? `${marginPercent.toFixed(1)}%` : '—'}
+          />
+          <EarningsStat
+            label="Profit / Mo (Projected)"
+            value={profitPerMonthProjected != null ? usdFmt.format(profitPerMonthProjected) : '—'}
+            unit="/mo"
+            tone={profitPerMonthProjected != null ? (profitPerMonthProjected >= 0 ? 'positive' : 'negative') : undefined}
+          />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -97,39 +178,12 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
     }
   }
 
-  const windowConfig = getWindowConfig(activeWindow);
-  const cardCount = nodes?.combined?.avg_cards;
-  const earningsPerGpuPerHour =
-    earnings?.hours && cardCount ? earnings.usd_realized / (earnings.hours * cardCount) : null;
-  const earningsPerMonthProjected =
-    earningsPerGpuPerHour != null ? earningsPerGpuPerHour * HOURS_PER_MONTH : null;
-
-  const costPerGpuPerHour = getCostPerGpuPerHour(cluster.cost);
-  const profitPerGpuPerHour =
-    costPerGpuPerHour != null && earningsPerGpuPerHour != null
-      ? earningsPerGpuPerHour - costPerGpuPerHour
-      : null;
-  const marginPercent =
-    profitPerGpuPerHour != null && earningsPerGpuPerHour
-      ? (profitPerGpuPerHour / earningsPerGpuPerHour) * 100
-      : null;
-  const profitPerMonthProjected =
-    profitPerGpuPerHour != null && cardCount
-      ? profitPerGpuPerHour * cardCount * HOURS_PER_MONTH
-      : null;
+  const { cardCount, earningsPerGpuPerHour } = deriveSubnetEarnings({ earnings, nodes });
 
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
       <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete}>
-        <span
-          className={`text-xs font-mono uppercase tracking-wide rounded-full px-3 py-1 border ${
-            activeWindow === '24h'
-              ? 'text-[#06b6d4] border-[#06b6d4]/30 bg-[#06b6d4]/10'
-              : 'text-[#94a3b8] border-white/10'
-          }`}
-        >
-          {windowConfig.badgeLabel}
-        </span>
+        <WindowBadge activeWindow={activeWindow} />
         <TimeWindowToggle
           activeWindow={activeWindow}
           onChange={handleWindowChange}
@@ -145,78 +199,106 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
       )}
 
       {!error && earnings && (
-        <div
-          className={`grid grid-cols-2 sm:grid-cols-4 gap-3 transition-opacity ${
-            loading ? 'opacity-50' : ''
-          }`}
-        >
-          <EarningsStat
-            label="TAO Earned"
-            value={numberFmt.format(earnings.tao_earned)}
-            unit="TAO"
-          />
-          <EarningsStat
-            label="USD Realized"
-            value={usdFmt.format(earnings.usd_realized)}
-            accent
-          />
-          <EarningsStat
-            label="Earnings / hr"
-            value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
-            unit="/hr"
-          />
-          <EarningsStat
-            label="Earnings / Mo (Projected)"
-            value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
-            unit="/mo"
-          />
-        </div>
-      )}
-
-      {!error && earnings && cluster.cost && (
-        <div
-          className={`grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/10 transition-opacity ${
-            loading ? 'opacity-50' : ''
-          }`}
-        >
-          <EarningsStat label="Cost / hr" value={usdFmt.format(costPerGpuPerHour)} unit="/hr" />
-          <EarningsStat
-            label="Profit / hr"
-            value={profitPerGpuPerHour != null ? usdFmt.format(profitPerGpuPerHour) : '—'}
-            unit="/hr"
-          />
-          <EarningsStat
-            label="Margin %"
-            value={marginPercent != null ? `${marginPercent.toFixed(1)}%` : '—'}
-          />
-          <EarningsStat
-            label="Profit / Mo (Projected)"
-            value={profitPerMonthProjected != null ? usdFmt.format(profitPerMonthProjected) : '—'}
-            unit="/mo"
-            tone={profitPerMonthProjected != null ? (profitPerMonthProjected >= 0 ? 'positive' : 'negative') : undefined}
-          />
-        </div>
+        <EarningsRows
+          taoEarned={earnings.tao_earned}
+          usdRealized={earnings.usd_realized}
+          earningsPerGpuPerHour={earningsPerGpuPerHour}
+          cardCount={cardCount}
+          cost={cluster.cost}
+          loading={loading}
+        />
       )}
     </div>
   );
 }
 
+function sinceLabel(onboardedAt) {
+  if (!onboardedAt) return null;
+  const formatted = new Date(onboardedAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  return `Since ${formatted}`;
+}
+
 function ContractClusterCard({ cluster, onEdit, onDelete }) {
+  const { cardCount, onboardedAt } = cluster.contract || {};
+  const { earningsPerGpuPerHour } = deriveContractEarnings({ contract: cluster.contract });
+
+  const elapsedHours = onboardedAt
+    ? (Date.now() - new Date(onboardedAt).getTime()) / (1000 * 60 * 60)
+    : null;
+
+  const revenueToDate =
+    earningsPerGpuPerHour != null && cardCount && elapsedHours != null
+      ? earningsPerGpuPerHour * cardCount * elapsedHours
+      : null;
+
+  const {
+    earningsPerMonthProjectedPerGpu: revenuePerMonthProjected,
+    profitPerGpuPerHour,
+    marginPercent,
+    profitPerMonthProjected,
+  } = computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost: cluster.cost });
+
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
-      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete} />
+      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete}>
+        {sinceLabel(onboardedAt) && (
+          <span className="text-xs font-mono uppercase tracking-wide rounded-full px-3 py-1 border text-[#94a3b8] border-white/10">
+            {sinceLabel(onboardedAt)}
+          </span>
+        )}
+      </ClusterHeader>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <EarningsStat
-          label="Contracted Rate"
-          value={usdFmt.format(cluster.contract?.pricePerHourUsd ?? 0)}
-          unit="/hr"
-          accent
-        />
-      </div>
-      <p className="text-xs text-[#94a3b8] mt-4">
-        Live earnings tracking isn&apos;t wired up for contract clusters yet.
-      </p>
+      {revenueToDate == null ? (
+        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+          This cluster is missing a card count or onboarding date — edit it to add them.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <EarningsStat
+              label="Contracted Rate"
+              value={usdFmt.format(earningsPerGpuPerHour)}
+              unit="/hr"
+            />
+            <EarningsStat label="Revenue to Date" value={usdFmt.format(revenueToDate)} accent />
+            <EarningsStat
+              label="Revenue / Mo (Projected)"
+              value={usdFmt.format(revenuePerMonthProjected)}
+              unit="/mo"
+            />
+          </div>
+
+          {cluster.cost && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10">
+              <EarningsStat
+                label="Profit / hr"
+                value={profitPerGpuPerHour != null ? usdFmt.format(profitPerGpuPerHour) : '—'}
+                unit="/hr"
+              />
+              <EarningsStat
+                label="Margin %"
+                value={marginPercent != null ? `${marginPercent.toFixed(1)}%` : '—'}
+              />
+              <EarningsStat
+                label="Profit / Mo (Projected)"
+                value={profitPerMonthProjected != null ? usdFmt.format(profitPerMonthProjected) : '—'}
+                unit="/mo"
+                tone={
+                  profitPerMonthProjected != null
+                    ? profitPerMonthProjected >= 0
+                      ? 'positive'
+                      : 'negative'
+                    : undefined
+                }
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

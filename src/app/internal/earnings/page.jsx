@@ -1,6 +1,8 @@
 import { listClusters } from '@/lib/internal/clusterStore';
 import { getEarnings, getNodes, getUids } from '@/lib/internal/vpsClient';
+import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
 import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard';
+import PortfolioTotalsBar from '@/components/internal/earnings/PortfolioTotalsBar';
 
 const INITIAL_WINDOW = '24h';
 
@@ -34,6 +36,7 @@ export default async function InternalEarningsPage() {
       ...(await loadClusterData(cluster, uidRecords)),
     }))
   );
+  const portfolioTotals = computePortfolioTotals(clustersWithData);
 
   return (
     <div className="bg-[#050508] text-white min-h-screen">
@@ -50,6 +53,7 @@ export default async function InternalEarningsPage() {
           </form>
         </div>
 
+        <PortfolioTotalsBar totals={portfolioTotals} />
         <EarningsDashboard clustersWithData={clustersWithData} />
       </div>
     </div>

@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { COMPUTE_TYPE_SUGGESTIONS, SUBNET_PLATFORMS, COST_MODES } from '@/lib/internal/clusterOptions';
 
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function initialFormState(cluster) {
   return {
     name: cluster?.name || '',
@@ -11,6 +15,8 @@ function initialFormState(cluster) {
     subnetPlatform: cluster?.subnet?.platform || SUBNET_PLATFORMS[0],
     subnetUidNumber: cluster?.subnet?.uidNumber ?? '',
     contractPricePerHourUsd: cluster?.contract?.pricePerHourUsd ?? '',
+    contractCardCount: cluster?.contract?.cardCount ?? '',
+    contractOnboardedAt: cluster?.contract?.onboardedAt || today(),
     hasCost: Boolean(cluster?.cost),
     costMode: cluster?.cost?.mode || COST_MODES[0].value,
     costValue: cluster?.cost?.value ?? '',
@@ -31,7 +37,11 @@ function buildPayload(form) {
       uidNumber: Number(form.subnetUidNumber),
     };
   } else {
-    payload.contract = { pricePerHourUsd: Number(form.contractPricePerHourUsd) };
+    payload.contract = {
+      pricePerHourUsd: Number(form.contractPricePerHourUsd),
+      cardCount: Number(form.contractCardCount),
+      onboardedAt: form.contractOnboardedAt,
+    };
   }
 
   return payload;
@@ -165,18 +175,45 @@ export default function ClusterFormModal({ cluster, onClose, onSaved }) {
               </div>
             </div>
           ) : (
-            <div>
-              <label className={labelClass}>Contracted Rate (USD/hr)</label>
-              <input
-                type="number"
-                required
-                step="0.01"
-                min="0"
-                value={form.contractPricePerHourUsd}
-                onChange={(e) => update('contractPricePerHourUsd', e.target.value)}
-                className={inputClass}
-                placeholder="12.50"
-              />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Contracted Rate (USD/hr per GPU)</label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    value={form.contractPricePerHourUsd}
+                    onChange={(e) => update('contractPricePerHourUsd', e.target.value)}
+                    className={inputClass}
+                    placeholder="12.50"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Card Count</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    step="1"
+                    value={form.contractCardCount}
+                    onChange={(e) => update('contractCardCount', e.target.value)}
+                    className={inputClass}
+                    placeholder="8"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Onboarded At</label>
+                <input
+                  type="date"
+                  required
+                  value={form.contractOnboardedAt}
+                  onChange={(e) => update('contractOnboardedAt', e.target.value)}
+                  className={inputClass}
+                />
+              </div>
             </div>
           )}
 
@@ -208,7 +245,9 @@ export default function ClusterFormModal({ cluster, onClose, onSaved }) {
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Cost (USD)</label>
+                  <label className={labelClass}>
+                    {form.costMode === 'per_month' ? 'Total Cost (USD/mo)' : 'Cost per GPU (USD/hr)'}
+                  </label>
                   <input
                     type="number"
                     step="0.01"
