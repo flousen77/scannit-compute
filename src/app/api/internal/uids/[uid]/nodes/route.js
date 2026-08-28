@@ -7,10 +7,12 @@ export async function GET(request, { params }) {
   }
 
   const { uid } = await params;
-  const window = request.nextUrl.searchParams.get('window') || '24h';
+  const since = request.nextUrl.searchParams.get('since');
+  const window = request.nextUrl.searchParams.get('window');
+  const range = since ? { since } : { window: window || '24h' };
 
   try {
-    const nodes = await getNodes(uid, window);
+    const nodes = await getNodes(uid, range);
     return Response.json(nodes);
   } catch (error) {
     return Response.json({ error: error.message }, { status: 502 });

@@ -1,5 +1,3 @@
-const VALID_WINDOWS = new Set(['24h', '7d', '30d']);
-
 function getConfig() {
   const baseUrl = process.env.VPS_BASE_URL;
   const apiKey = process.env.VPS_API_KEY;
@@ -31,22 +29,25 @@ async function vpsFetch(path) {
   return res.json();
 }
 
-function assertWindow(window) {
-  if (!VALID_WINDOWS.has(window)) {
-    throw new Error(`Invalid window: ${window}`);
+// `range` is either { window: '24h' | '7d' | '30d' } or { since: '<ISO date>' }.
+function buildRangeQuery(range) {
+  const params = new URLSearchParams();
+  if (range?.since) {
+    params.set('since', range.since);
+  } else {
+    params.set('window', range?.window || '24h');
   }
+  return params.toString();
 }
 
 export function getUids() {
   return vpsFetch('/api/uids');
 }
 
-export function getEarnings(uid, window) {
-  assertWindow(window);
-  return vpsFetch(`/api/uids/${encodeURIComponent(uid)}/earnings?window=${window}`);
+export function getEarnings(uid, range) {
+  return vpsFetch(`/api/uids/${encodeURIComponent(uid)}/earnings?${buildRangeQuery(range)}`);
 }
 
-export function getNodes(uid, window) {
-  assertWindow(window);
-  return vpsFetch(`/api/uids/${encodeURIComponent(uid)}/nodes?window=${window}`);
+export function getNodes(uid, range) {
+  return vpsFetch(`/api/uids/${encodeURIComponent(uid)}/nodes?${buildRangeQuery(range)}`);
 }

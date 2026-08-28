@@ -1,28 +1,42 @@
 import { getClusters } from '@/lib/internal/clusters';
-import { getEarnings } from '@/lib/internal/vpsClient';
+import { getEarnings, getNodes, getUids } from '@/lib/internal/vpsClient';
 import ClusterCard from '@/components/internal/earnings/ClusterCard';
 
-const WINDOW = '24h';
+const INITIAL_WINDOW = '24h';
 
-async function loadClusterEarnings(cluster) {
+async function loadClusterData(cluster, uidRecords) {
   if (cluster.hostingMode !== 'subnet' || !cluster.subnet?.uid) {
-    return { earnings: null, error: 'No subnet UID configured for this cluster.' };
+    return {
+      earnings: null,
+      nodes: null,
+      onboardedAt: null,
+      error: 'No subnet UID configured for this cluster.',
+    };
   }
 
+  const uidRecord = uidRecords.find(
+    (u) => String(u.uid_number) === String(cluster.subnet.uid)
+  );
+  const onboardedAt = uidRecord?.onboarded_at ?? null;
+
   try {
-    const earnings = await getEarnings(cluster.subnet.uid, WINDOW);
-    return { earnings, error: null };
+    const [earnings, nodes] = await Promise.all([
+      getEarnings(cluster.subnet.uid, { window: INITIAL_WINDOW }),
+      getNodes(cluster.subnet.uid, { window: INITIAL_WINDOW }),
+    ]);
+    return { earnings, nodes, onboardedAt, error: null };
   } catch (error) {
-    return { earnings: null, error: error.message };
+    return { earnings: null, nodes: null, onboardedAt, error: error.message };
   }
 }
 
 export default async function InternalEarningsPage() {
   const clusters = getClusters();
-  const clustersWithEarnings = await Promise.all(
+  const uidRecords = await getUids().catch(() => []);
+  const clustersWithData = await Promise.all(
     clusters.map(async (cluster) => ({
       cluster,
-      ...(await loadClusterEarnings(cluster)),
+      ...(await loadClusterData(cluster, uidRecords)),
     }))
   );
 
@@ -42,13 +56,15 @@ export default async function InternalEarningsPage() {
         </div>
 
         <div className="space-y-4">
-          {clustersWithEarnings.map(({ cluster, earnings, error }) => (
+          {clustersWithData.map(({ cluster, earnings, nodes, onboardedAt, error }) => (
             <ClusterCard
               key={cluster.id}
               cluster={cluster}
-              window={WINDOW}
-              earnings={earnings}
-              error={error}
+              onboardedAt={onboardedAt}
+              initialWindow={INITIAL_WINDOW}
+              initialEarnings={earnings}
+              initialNodes={nodes}
+              initialError={error}
             />
           ))}
         </div>
