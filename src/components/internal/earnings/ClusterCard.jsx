@@ -12,6 +12,13 @@ const usdFmt = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
+const HOURS_PER_MONTH = 720;
+
+function getCostPerGpuPerHour(cost) {
+  if (!cost) return null;
+  return cost.mode === 'per_hour' ? cost.value : cost.value / HOURS_PER_MONTH;
+}
+
 function buildRangeQuery(windowValue, onboardedAt) {
   return windowValue === 'all'
     ? `since=${encodeURIComponent(onboardedAt)}`
@@ -92,8 +99,24 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
 
   const windowConfig = getWindowConfig(activeWindow);
   const cardCount = nodes?.combined?.avg_cards;
-  const perGpuPerHour =
+  const earningsPerGpuPerHour =
     earnings?.hours && cardCount ? earnings.usd_realized / (earnings.hours * cardCount) : null;
+  const earningsPerMonthProjected =
+    earningsPerGpuPerHour != null ? earningsPerGpuPerHour * HOURS_PER_MONTH : null;
+
+  const costPerGpuPerHour = getCostPerGpuPerHour(cluster.cost);
+  const profitPerGpuPerHour =
+    costPerGpuPerHour != null && earningsPerGpuPerHour != null
+      ? earningsPerGpuPerHour - costPerGpuPerHour
+      : null;
+  const marginPercent =
+    profitPerGpuPerHour != null && earningsPerGpuPerHour
+      ? (profitPerGpuPerHour / earningsPerGpuPerHour) * 100
+      : null;
+  const profitPerMonthProjected =
+    profitPerGpuPerHour != null && cardCount
+      ? profitPerGpuPerHour * cardCount * HOURS_PER_MONTH
+      : null;
 
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
@@ -139,13 +162,38 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
           />
           <EarningsStat
             label="Earnings / hr"
-            value={usdFmt.format(earnings.earnings_per_hour_usd)}
+            value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
             unit="/hr"
           />
           <EarningsStat
-            label="Earnings / GPU / hr"
-            value={perGpuPerHour != null ? usdFmt.format(perGpuPerHour) : '—'}
+            label="Earnings / Mo (Projected)"
+            value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
+            unit="/mo"
+          />
+        </div>
+      )}
+
+      {!error && earnings && cluster.cost && (
+        <div
+          className={`grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/10 transition-opacity ${
+            loading ? 'opacity-50' : ''
+          }`}
+        >
+          <EarningsStat label="Cost / hr" value={usdFmt.format(costPerGpuPerHour)} unit="/hr" />
+          <EarningsStat
+            label="Profit / hr"
+            value={profitPerGpuPerHour != null ? usdFmt.format(profitPerGpuPerHour) : '—'}
             unit="/hr"
+          />
+          <EarningsStat
+            label="Margin %"
+            value={marginPercent != null ? `${marginPercent.toFixed(1)}%` : '—'}
+          />
+          <EarningsStat
+            label="Profit / Mo (Projected)"
+            value={profitPerMonthProjected != null ? usdFmt.format(profitPerMonthProjected) : '—'}
+            unit="/mo"
+            tone={profitPerMonthProjected != null ? (profitPerMonthProjected >= 0 ? 'positive' : 'negative') : undefined}
           />
         </div>
       )}
