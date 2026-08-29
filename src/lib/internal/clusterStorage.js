@@ -1,25 +1,25 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { Redis } from '@upstash/redis';
 
-// Local JSON file storage for the internal team only. TODO: swap for a
-// shared store (e.g. Vercel KV) once this needs to run multi-instance or
-// survive ephemeral/serverless deploys. This file's two functions are the
-// only thing that should need to change for that swap — keep the
-// readClusters/writeClusters signatures the same.
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'internal-clusters.json');
+// Shared cluster storage via Upstash Redis (provisioned through Vercel's
+// "CLUSTER_KV" integration). Its env vars use Vercel's KV naming, not the
+// plain UPSTASH_REDIS_REST_URL/TOKEN names Redis.fromEnv() expects, so the
+// client is built explicitly with those instead of via fromEnv().
+function getClient() {
+  const url = process.env.CLUSTER_KV_KV_REST_API_URL;
+  const token = process.env.CLUSTER_KV_KV_REST_API_TOKEN;
+  if (!url || !token) {
+    throw new Error('CLUSTER_KV_KV_REST_API_URL / CLUSTER_KV_KV_REST_API_TOKEN are not set');
+  }
+  return new Redis({ url, token });
+}
+
+const CLUSTERS_KEY = 'clusters';
 
 export async function readClusters() {
-  try {
-    const raw = await fs.readFile(DATA_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    throw error;
-  }
+  const clusters = await getClient().get(CLUSTERS_KEY);
+  return clusters ?? [];
 }
 
 export async function writeClusters(clusters) {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(DATA_FILE, JSON.stringify(clusters, null, 2));
+  await getClient().set(CLUSTERS_KEY, clusters);
 }

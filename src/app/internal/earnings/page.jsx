@@ -34,7 +34,14 @@ async function loadClusterData(cluster, uidRecords) {
 }
 
 export default async function InternalEarningsPage() {
-  const clusters = await listClusters();
+  let clusters = [];
+  let clustersError = null;
+  try {
+    clusters = await listClusters();
+  } catch (error) {
+    clustersError = error.message;
+  }
+
   const uidRecords = await getUids().catch(() => []);
   const clustersWithData = await Promise.all(
     clusters.map(async (cluster) => ({
@@ -58,6 +65,12 @@ export default async function InternalEarningsPage() {
             </button>
           </form>
         </div>
+
+        {clustersError && (
+          <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-6">
+            Couldn&apos;t load clusters: {clustersError}
+          </div>
+        )}
 
         <PortfolioTotalsBar totals={portfolioTotals} />
         <EarningsDashboard clustersWithData={clustersWithData} />
