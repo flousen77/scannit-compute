@@ -30,9 +30,9 @@ export default function FlywheelSection() {
               <div className="h-14 w-14 rounded-full flex items-center justify-center text-[#06b6d4] mb-5 border border-[#06b6d4]/40 bg-[#06b6d4]/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
                 <i className="fas fa-tags text-xl"></i>
               </div>
-              <h4 className="text-white font-bold text-lg mb-3">Acquire & Discount</h4>
+              <h4 className="text-white font-bold text-lg mb-3">Institutional Acquisition</h4>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
-                Secure servers via <strong className="text-white">initial capital/loan</strong>, utilizing our <strong className="text-[#06b6d4]">NVIDIA Inception 30% Discount</strong>.
+                Secure enterprise clusters via initial capital, <strong className="text-white">leveraging direct OEM distributor pricing</strong> and <strong className="text-[#06b6d4]">preferred hardware allocations</strong>.
               </p>
             </div>
 
