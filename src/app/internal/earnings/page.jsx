@@ -2,7 +2,6 @@ import { listClusters } from '@/lib/internal/clusterStore';
 import { getEarnings, getNodes, getEarningsSnapshot, getDailyEarnings } from '@/lib/internal/vpsClient';
 import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
 import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard';
-import PortfolioTotalsBar from '@/components/internal/earnings/PortfolioTotalsBar';
 
 // Previously forced dynamic only as a side effect of the old VPS fetch's
 // `cache: 'no-store'`. Now that data comes from Redis reads (no fetch to key
@@ -111,8 +110,11 @@ export default async function InternalEarningsPage() {
           </div>
         )}
 
-        <PortfolioTotalsBar totals={portfolioTotals} />
-        <EarningsDashboard clustersWithData={clustersWithData} renderedAtMs={renderedAtMs} />
+        <EarningsDashboard
+          clustersWithData={clustersWithData}
+          renderedAtMs={renderedAtMs}
+          portfolioTotals={portfolioTotals}
+        />
       </div>
     </div>
   );

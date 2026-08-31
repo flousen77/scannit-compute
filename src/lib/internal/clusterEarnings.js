@@ -66,27 +66,35 @@ export function computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost })
 }
 
 // Fleet-wide rollup for the portfolio totals bar. USD only (TAO isn't
-// meaningful to sum across mixed subnet/contract clusters). Only clusters
-// with cost tracked contribute to the profit figures; the margin denominator
-// (revenue) is restricted to that same subset so the percentage stays
-// internally consistent.
+// meaningful to sum across mixed subnet/contract clusters). MRR (revenue) is
+// summed across every cluster with a known rate, regardless of whether cost
+// is tracked — profit obviously can't be computed without cost, but revenue
+// can, and gating it behind cost-tracking would understate MRR for any
+// cluster that just hasn't had cost configured yet. The margin % denominator
+// is a separate, narrower revenue sum restricted to cost-tracked clusters
+// only, so that percentage stays internally consistent with the profit
+// figures it's dividing.
 export function computePortfolioTotals(clustersWithData) {
   let totalClusters = 0;
   let subnetCount = 0;
   let contractCount = 0;
   let clustersWithCost = 0;
+  let clustersWithRevenue = 0;
   let totalProfitPerMonth = 0;
   let subnetProfitPerMonth = 0;
   let contractProfitPerMonth = 0;
   let totalRevenuePerMonth = 0;
+  let subnetRevenuePerMonth = 0;
+  let contractRevenuePerMonth = 0;
+  let revenueForMarginDenominator = 0;
+  let subnetRevenueForMargin = 0;
+  let contractRevenueForMargin = 0;
 
   for (const { cluster, earnings, nodes } of clustersWithData) {
     totalClusters += 1;
     const isSubnet = cluster.hostingMode === 'subnet';
     if (isSubnet) subnetCount += 1;
     else contractCount += 1;
-
-    if (!cluster.cost) continue;
 
     const { cardCount, earningsPerGpuPerHour } = isSubnet
       ? deriveSubnetEarnings({ earnings, nodes })
@@ -98,28 +106,53 @@ export function computePortfolioTotals(clustersWithData) {
       cost: cluster.cost,
     });
 
-    if (profitPerMonthProjected == null || revenuePerMonthProjectedTotal == null) continue;
+    if (revenuePerMonthProjectedTotal != null) {
+      clustersWithRevenue += 1;
+      totalRevenuePerMonth += revenuePerMonthProjectedTotal;
+      if (isSubnet) subnetRevenuePerMonth += revenuePerMonthProjectedTotal;
+      else contractRevenuePerMonth += revenuePerMonthProjectedTotal;
+    }
+
+    if (!cluster.cost || profitPerMonthProjected == null) continue;
 
     clustersWithCost += 1;
     totalProfitPerMonth += profitPerMonthProjected;
-    totalRevenuePerMonth += revenuePerMonthProjectedTotal;
-    if (isSubnet) subnetProfitPerMonth += profitPerMonthProjected;
-    else contractProfitPerMonth += profitPerMonthProjected;
+    revenueForMarginDenominator += revenuePerMonthProjectedTotal;
+    if (isSubnet) {
+      subnetProfitPerMonth += profitPerMonthProjected;
+      subnetRevenueForMargin += revenuePerMonthProjectedTotal;
+    } else {
+      contractProfitPerMonth += profitPerMonthProjected;
+      contractRevenueForMargin += revenuePerMonthProjectedTotal;
+    }
   }
 
   const hasCostData = clustersWithCost > 0;
+  const hasRevenueData = clustersWithRevenue > 0;
 
   return {
     totalClusters,
     subnetCount,
     contractCount,
     clustersWithCost,
+    clustersWithRevenue,
     totalProfitPerMonth: hasCostData ? totalProfitPerMonth : null,
     subnetProfitPerMonth: hasCostData ? subnetProfitPerMonth : null,
     contractProfitPerMonth: hasCostData ? contractProfitPerMonth : null,
-    blendedMarginPercent:
-      hasCostData && totalRevenuePerMonth
-        ? (totalProfitPerMonth / totalRevenuePerMonth) * 100
+    totalRevenuePerMonth: hasRevenueData ? totalRevenuePerMonth : null,
+    subnetRevenuePerMonth: hasRevenueData ? subnetRevenuePerMonth : null,
+    contractRevenuePerMonth: hasRevenueData ? contractRevenuePerMonth : null,
+    totalMarginPercent:
+      hasCostData && revenueForMarginDenominator
+        ? (totalProfitPerMonth / revenueForMarginDenominator) * 100
+        : null,
+    subnetMarginPercent:
+      hasCostData && subnetRevenueForMargin
+        ? (subnetProfitPerMonth / subnetRevenueForMargin) * 100
+        : null,
+    contractMarginPercent:
+      hasCostData && contractRevenueForMargin
+        ? (contractProfitPerMonth / contractRevenueForMargin) * 100
         : null,
   };
 }
