@@ -264,12 +264,18 @@ function sinceLabel(onboardedAt) {
   return `Since ${formatted}`;
 }
 
-function ContractClusterCard({ cluster, onEdit, onDelete }) {
+function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete }) {
   const { cardCount, onboardedAt } = cluster.contract || {};
   const { earningsPerGpuPerHour } = deriveContractEarnings({ contract: cluster.contract });
 
+  // renderedAtMs comes from the server-rendered page, not Date.now() here —
+  // this file is a Client Component, and SSR + client hydration run at two
+  // different real moments, so reading the clock directly in render would
+  // make elapsedHours (and revenueToDate) differ by a few seconds' worth of
+  // the rate between the two passes, which is enough to flip the last cent
+  // and trip a hydration mismatch.
   const elapsedHours = onboardedAt
-    ? (Date.now() - new Date(onboardedAt).getTime()) / (1000 * 60 * 60)
+    ? (renderedAtMs - new Date(onboardedAt).getTime()) / (1000 * 60 * 60)
     : null;
 
   const revenueToDate =

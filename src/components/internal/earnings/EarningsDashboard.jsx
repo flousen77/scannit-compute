@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import ClusterCard from './ClusterCard';
 import ClusterFormModal from './ClusterFormModal';
 
-export default function EarningsDashboard({ clustersWithData }) {
+export default function EarningsDashboard({ clustersWithData, renderedAtMs }) {
   const router = useRouter();
   const [formTarget, setFormTarget] = useState(null); // null | 'new' | cluster object
 
@@ -47,6 +47,7 @@ export default function EarningsDashboard({ clustersWithData }) {
           key={`${cluster.id}:${JSON.stringify(cluster)}`}
           cluster={cluster}
           onboardedAt={onboardedAt}
+          renderedAtMs={renderedAtMs}
           initialWindow="24h"
           initialEarnings={earnings}
           initialNodes={nodes}

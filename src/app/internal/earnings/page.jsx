@@ -66,6 +66,13 @@ export default async function InternalEarningsPage() {
   );
   const portfolioTotals = computePortfolioTotals(clustersWithData);
 
+  // Computed once, server-side only, and passed down as a prop rather than
+  // read via Date.now() inside a Client Component's render — reading the
+  // clock directly there hydration-mismatches, since SSR and the client's
+  // hydration pass run at two different real moments (ContractClusterCard's
+  // elapsed-hours revenue math used to do exactly that).
+  const renderedAtMs = Date.now();
+
   // Oldest sync across clusters, not newest — a stale straggler should show
   // up here rather than being hidden behind a fresher cluster's timestamp.
   const lastSyncedAt = clustersWithData
@@ -105,7 +112,7 @@ export default async function InternalEarningsPage() {
         )}
 
         <PortfolioTotalsBar totals={portfolioTotals} />
-        <EarningsDashboard clustersWithData={clustersWithData} />
+        <EarningsDashboard clustersWithData={clustersWithData} renderedAtMs={renderedAtMs} />
       </div>
     </div>
   );
