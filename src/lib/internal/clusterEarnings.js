@@ -87,6 +87,8 @@ export function computePortfolioTotals(clustersWithData) {
   let subnetRevenuePerMonth = 0;
   let contractRevenuePerMonth = 0;
   let revenueForMarginDenominator = 0;
+  let subnetRevenueForMargin = 0;
+  let contractRevenueForMargin = 0;
 
   for (const { cluster, earnings, nodes } of clustersWithData) {
     totalClusters += 1;
@@ -116,8 +118,13 @@ export function computePortfolioTotals(clustersWithData) {
     clustersWithCost += 1;
     totalProfitPerMonth += profitPerMonthProjected;
     revenueForMarginDenominator += revenuePerMonthProjectedTotal;
-    if (isSubnet) subnetProfitPerMonth += profitPerMonthProjected;
-    else contractProfitPerMonth += profitPerMonthProjected;
+    if (isSubnet) {
+      subnetProfitPerMonth += profitPerMonthProjected;
+      subnetRevenueForMargin += revenuePerMonthProjectedTotal;
+    } else {
+      contractProfitPerMonth += profitPerMonthProjected;
+      contractRevenueForMargin += revenuePerMonthProjectedTotal;
+    }
   }
 
   const hasCostData = clustersWithCost > 0;
@@ -135,9 +142,17 @@ export function computePortfolioTotals(clustersWithData) {
     totalRevenuePerMonth: hasRevenueData ? totalRevenuePerMonth : null,
     subnetRevenuePerMonth: hasRevenueData ? subnetRevenuePerMonth : null,
     contractRevenuePerMonth: hasRevenueData ? contractRevenuePerMonth : null,
-    blendedMarginPercent:
+    totalMarginPercent:
       hasCostData && revenueForMarginDenominator
         ? (totalProfitPerMonth / revenueForMarginDenominator) * 100
+        : null,
+    subnetMarginPercent:
+      hasCostData && subnetRevenueForMargin
+        ? (subnetProfitPerMonth / subnetRevenueForMargin) * 100
+        : null,
+    contractMarginPercent:
+      hasCostData && contractRevenueForMargin
+        ? (contractProfitPerMonth / contractRevenueForMargin) * 100
         : null,
   };
 }

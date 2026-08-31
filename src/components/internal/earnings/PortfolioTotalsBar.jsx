@@ -4,26 +4,53 @@ const usdFmt = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-function ToneValue({ value, size = 'text-xl' }) {
-  const tone = value == null ? 'text-white' : value >= 0 ? 'text-[#06b6d4]' : 'text-red-400';
+const FILTERS = [
+  { key: 'all', label: 'All clusters' },
+  { key: 'subnet', label: 'Subnet' },
+  { key: 'contract', label: 'Contract' },
+];
+
+// grid-cols-1/2/3 need to exist as literal strings somewhere for Tailwind's
+// content scan to pick them up — a template-interpolated `grid-cols-${n}`
+// wouldn't be found.
+const GRID_COLS = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' };
+
+function SegmentCard({ label, mrr, profit, margin, accent }) {
   return (
-    <div className={`font-mono tabular-nums ${size} font-semibold ${tone}`}>
-      {value != null ? usdFmt.format(value) : '—'}
+    <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
+      <div className="text-sm font-semibold text-white uppercase tracking-wide mb-4">{label}</div>
+
+      <div className="text-xs uppercase tracking-wide text-brand-muted mb-1.5">
+        MRR (Projected)
+      </div>
+      <div
+        className={`font-mono tabular-nums text-3xl font-semibold ${
+          accent ? 'text-brand-cyan' : 'text-white'
+        }`}
+      >
+        {mrr != null ? usdFmt.format(mrr) : '—'}
+      </div>
+
+      <div className="text-sm text-brand-muted mt-3 pt-3 border-t border-white/10">
+        Profit <span className="text-white font-mono">{profit != null ? usdFmt.format(profit) : '—'}</span>
+        <span className="mx-1.5">·</span>
+        <span className="text-white font-mono">{margin != null ? `${margin.toFixed(1)}%` : '—'}</span> margin
+      </div>
     </div>
   );
 }
 
-export default function PortfolioTotalsBar({ totals }) {
+export default function PortfolioTotalsBar({ totals, activeFilter, onFilterChange }) {
   const {
     totalClusters,
-    subnetCount,
-    contractCount,
     clustersWithCost,
     clustersWithRevenue,
     totalProfitPerMonth,
     subnetProfitPerMonth,
     contractProfitPerMonth,
-    blendedMarginPercent,
+    totalMarginPercent,
+    subnetMarginPercent,
+    contractMarginPercent,
     totalRevenuePerMonth,
     subnetRevenuePerMonth,
     contractRevenuePerMonth,
@@ -31,87 +58,57 @@ export default function PortfolioTotalsBar({ totals }) {
 
   if (totalClusters === 0) return null;
 
+  const segments = {
+    all: { label: 'Total', mrr: totalRevenuePerMonth, profit: totalProfitPerMonth, margin: totalMarginPercent },
+    subnet: { label: 'Subnet', mrr: subnetRevenuePerMonth, profit: subnetProfitPerMonth, margin: subnetMarginPercent },
+    contract: { label: 'Enterprise', mrr: contractRevenuePerMonth, profit: contractProfitPerMonth, margin: contractMarginPercent },
+  };
+
+  const visibleKeys = activeFilter === 'all' ? ['all', 'subnet', 'contract'] : [activeFilter];
+  // Total is always the accent card in the full view; when filtered down to
+  // one segment, that segment becomes the sole headline, so it takes the
+  // accent too rather than staying neutral just because it isn't "Total".
+  const isAccent = (key) => key === 'all' || visibleKeys.length === 1;
+
   return (
-    <div className="bg-white/[0.03] border border-white/10 rounded-xl px-6 py-5 mb-6">
-      <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">
-            Total Profit / Mo (Projected)
-          </div>
-          <ToneValue value={totalProfitPerMonth} size="text-3xl" />
-        </div>
-
-        <div className="hidden sm:block w-px self-stretch bg-white/10" />
-
-        <div>
-          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">
-            Subnet Profit / Mo
-          </div>
-          <div className="font-mono tabular-nums text-xl font-semibold text-white">
-            {subnetProfitPerMonth != null ? usdFmt.format(subnetProfitPerMonth) : '—'}
-          </div>
-        </div>
-
-        <div>
-          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">
-            Enterprise Profit / Mo
-          </div>
-          <div className="font-mono tabular-nums text-xl font-semibold text-white">
-            {contractProfitPerMonth != null ? usdFmt.format(contractProfitPerMonth) : '—'}
-          </div>
-        </div>
-
-        <div>
-          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">
-            Blended Margin %
-          </div>
-          <div className="font-mono tabular-nums text-xl font-semibold text-white">
-            {blendedMarginPercent != null ? `${blendedMarginPercent.toFixed(1)}%` : '—'}
-          </div>
-        </div>
+    <div className="mb-6">
+      <div className={`grid grid-cols-1 ${GRID_COLS[visibleKeys.length]} gap-4`}>
+        {visibleKeys.map((key) => (
+          <SegmentCard key={key} {...segments[key]} accent={isAccent(key)} />
+        ))}
       </div>
 
-      <div className="flex flex-wrap items-start gap-x-10 gap-y-4 mt-4 pt-4 border-t border-white/10">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">
-            Total MRR (Projected)
-          </div>
-          <div className="font-mono tabular-nums text-3xl font-semibold text-[#06b6d4]">
-            {totalRevenuePerMonth != null ? usdFmt.format(totalRevenuePerMonth) : '—'}
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+        <div className="inline-flex items-center gap-1 bg-black/30 border border-white/10 rounded-full p-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => onFilterChange(f.key)}
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                activeFilter === f.key
+                  ? 'bg-white text-brand-dark'
+                  : 'text-brand-muted hover:text-white'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
 
-        <div className="hidden sm:block w-px self-stretch bg-white/10" />
-
-        <div>
-          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">Subnet MRR</div>
-          <div className="font-mono tabular-nums text-xl font-semibold text-white">
-            {subnetRevenuePerMonth != null ? usdFmt.format(subnetRevenuePerMonth) : '—'}
+        {activeFilter === 'all' && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-brand-muted">
+            {clustersWithRevenue < totalClusters && (
+              <span>
+                MRR reflects {clustersWithRevenue} of {totalClusters} clusters
+              </span>
+            )}
+            {clustersWithCost < totalClusters && (
+              <span>
+                Profit reflects {clustersWithCost} of {totalClusters} clusters
+              </span>
+            )}
           </div>
-        </div>
-
-        <div>
-          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">Enterprise MRR</div>
-          <div className="font-mono tabular-nums text-xl font-semibold text-white">
-            {contractRevenuePerMonth != null ? usdFmt.format(contractRevenuePerMonth) : '—'}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 pt-4 border-t border-white/10 text-xs text-[#94a3b8]">
-        <span>
-          {totalClusters} cluster{totalClusters === 1 ? '' : 's'} · {subnetCount} subnet ·{' '}
-          {contractCount} contract
-        </span>
-        {clustersWithRevenue < totalClusters && (
-          <span>
-            MRR reflects {clustersWithRevenue} of {totalClusters} clusters
-          </span>
-        )}
-        {clustersWithCost < totalClusters && (
-          <span>
-            Profit reflects {clustersWithCost} of {totalClusters} clusters
-          </span>
         )}
       </div>
     </div>
