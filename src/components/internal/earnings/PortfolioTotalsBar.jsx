@@ -7,13 +7,8 @@ const usdFmt = new Intl.NumberFormat('en-US', {
 const FILTERS = [
   { key: 'all', label: 'All clusters' },
   { key: 'subnet', label: 'Subnet' },
-  { key: 'contract', label: 'Contract' },
+  { key: 'contract', label: 'Enterprise' },
 ];
-
-// grid-cols-1/2/3 need to exist as literal strings somewhere for Tailwind's
-// content scan to pick them up — a template-interpolated `grid-cols-${n}`
-// wouldn't be found.
-const GRID_COLS = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3' };
 
 function SegmentCard({ label, mrr, profit, margin, accent }) {
   return (
@@ -72,7 +67,7 @@ export default function PortfolioTotalsBar({ totals, activeFilter, onFilterChang
 
   return (
     <div className="mb-6">
-      <div className={`grid grid-cols-1 ${GRID_COLS[visibleKeys.length]} gap-4`}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {visibleKeys.map((key) => (
           <SegmentCard key={key} {...segments[key]} accent={isAccent(key)} />
         ))}
