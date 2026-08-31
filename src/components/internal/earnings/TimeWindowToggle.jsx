@@ -17,6 +17,7 @@ export default function TimeWindowToggle({
   disabled,
   allTimeDisabled,
   customRange,
+  onboardedAt,
 }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [since, setSince] = useState(customRange?.since ?? '');
@@ -69,6 +70,7 @@ export default function TimeWindowToggle({
             <input
               type="date"
               value={since}
+              min={onboardedAt || undefined}
               max={until || todayDateStr()}
               onChange={(e) => setSince(e.target.value)}
               className={inputClass}

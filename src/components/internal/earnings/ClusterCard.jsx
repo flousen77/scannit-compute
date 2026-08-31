@@ -63,12 +63,21 @@ function formatBadgeDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function WindowBadge({ activeWindow, customRange }) {
+function WindowBadge({ activeWindow, customRange, earnings, onboardedAt }) {
   const windowConfig = getWindowConfig(activeWindow);
-  const label =
-    activeWindow === 'custom' && customRange?.since && customRange?.until
-      ? `${formatBadgeDate(customRange.since)} – ${formatBadgeDate(customRange.until)}`
-      : windowConfig.badgeLabel;
+  let label = windowConfig.badgeLabel;
+  if (activeWindow === 'custom' && customRange?.since && customRange?.until) {
+    label = `${formatBadgeDate(customRange.since)} – ${formatBadgeDate(customRange.until)}`;
+  } else if (
+    activeWindow === 'all' &&
+    earnings?.since &&
+    onboardedAt &&
+    earnings.since !== onboardedAt
+  ) {
+    // The cache's earliest data for this uid starts later than the cluster's
+    // true onboarding date — don't call a shorter span "ALL TIME".
+    label = `SINCE ${formatBadgeDate(earnings.since)}`;
+  }
   return (
     <span
       className={`text-xs font-mono uppercase tracking-wide rounded-full px-3 py-1 border ${
@@ -206,7 +215,12 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
       <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete}>
-        <WindowBadge activeWindow={activeWindow} customRange={customRange} />
+        <WindowBadge
+          activeWindow={activeWindow}
+          customRange={customRange}
+          earnings={earnings}
+          onboardedAt={onboardedAt}
+        />
         <TimeWindowToggle
           activeWindow={activeWindow}
           onChange={handleWindowChange}
@@ -214,6 +228,7 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
           disabled={loading || !uid}
           allTimeDisabled={!onboardedAt}
           customRange={customRange}
+          onboardedAt={onboardedAt}
         />
       </ClusterHeader>
 
