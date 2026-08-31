@@ -19,10 +19,14 @@ export default function PortfolioTotalsBar({ totals }) {
     subnetCount,
     contractCount,
     clustersWithCost,
+    clustersWithRevenue,
     totalProfitPerMonth,
     subnetProfitPerMonth,
     contractProfitPerMonth,
     blendedMarginPercent,
+    totalRevenuePerMonth,
+    subnetRevenuePerMonth,
+    contractRevenuePerMonth,
   } = totals;
 
   if (totalClusters === 0) return null;
@@ -67,11 +71,43 @@ export default function PortfolioTotalsBar({ totals }) {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-start gap-x-10 gap-y-4 mt-4 pt-4 border-t border-white/10">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">
+            Total MRR (Projected)
+          </div>
+          <div className="font-mono tabular-nums text-3xl font-semibold text-[#06b6d4]">
+            {totalRevenuePerMonth != null ? usdFmt.format(totalRevenuePerMonth) : '—'}
+          </div>
+        </div>
+
+        <div className="hidden sm:block w-px self-stretch bg-white/10" />
+
+        <div>
+          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">Subnet MRR</div>
+          <div className="font-mono tabular-nums text-xl font-semibold text-white">
+            {subnetRevenuePerMonth != null ? usdFmt.format(subnetRevenuePerMonth) : '—'}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5">Enterprise MRR</div>
+          <div className="font-mono tabular-nums text-xl font-semibold text-white">
+            {contractRevenuePerMonth != null ? usdFmt.format(contractRevenuePerMonth) : '—'}
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 pt-4 border-t border-white/10 text-xs text-[#94a3b8]">
         <span>
           {totalClusters} cluster{totalClusters === 1 ? '' : 's'} · {subnetCount} subnet ·{' '}
           {contractCount} contract
         </span>
+        {clustersWithRevenue < totalClusters && (
+          <span>
+            MRR reflects {clustersWithRevenue} of {totalClusters} clusters
+          </span>
+        )}
         {clustersWithCost < totalClusters && (
           <span>
             Profit reflects {clustersWithCost} of {totalClusters} clusters

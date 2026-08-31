@@ -121,7 +121,7 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           unit="/hr"
         />
         <EarningsStat
-          label="Earnings / Mo (Projected)"
+          label="MRR (Projected)"
           value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
           unit="/mo"
         />
@@ -314,7 +314,7 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete }) {
             />
             <EarningsStat label="Revenue to Date" value={usdFmt.format(revenueToDate)} accent />
             <EarningsStat
-              label="Revenue / Mo (Projected)"
+              label="MRR (Projected)"
               value={usdFmt.format(revenuePerMonthProjected)}
               unit="/mo"
             />
