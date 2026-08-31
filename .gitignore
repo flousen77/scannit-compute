@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local internal-dashboard data (TODO: swap for a shared store before deploying)
+/data/internal-clusters.json
+
 # vercel
 .vercel
 

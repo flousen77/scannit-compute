@@ -1,0 +1,21 @@
+import { isAuthorized } from '@/lib/internal/auth';
+import { getEarnings } from '@/lib/internal/vpsClient';
+
+export async function GET(request, { params }) {
+  if (!isAuthorized(request)) {
+    return Response.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  const { uid } = await params;
+  const since = request.nextUrl.searchParams.get('since');
+  const until = request.nextUrl.searchParams.get('until');
+  const window = request.nextUrl.searchParams.get('window');
+  const range = since ? { since, until: until || undefined } : { window: window || '24h' };
+
+  try {
+    const earnings = await getEarnings(uid, range);
+    return Response.json(earnings);
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 502 });
+  }
+}
