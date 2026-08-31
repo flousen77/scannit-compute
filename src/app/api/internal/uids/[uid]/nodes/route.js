@@ -8,8 +8,9 @@ export async function GET(request, { params }) {
 
   const { uid } = await params;
   const since = request.nextUrl.searchParams.get('since');
+  const until = request.nextUrl.searchParams.get('until');
   const window = request.nextUrl.searchParams.get('window');
-  const range = since ? { since } : { window: window || '24h' };
+  const range = since ? { since, until: until || undefined } : { window: window || '24h' };
 
   try {
     const nodes = await getNodes(uid, range);

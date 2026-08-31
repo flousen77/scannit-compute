@@ -3,6 +3,7 @@ export const WINDOWS = [
   { value: '7d', toggleLabel: '7D', badgeLabel: '7 DAYS' },
   { value: '30d', toggleLabel: '30D', badgeLabel: '30 DAYS' },
   { value: 'all', toggleLabel: 'All', badgeLabel: 'ALL TIME' },
+  { value: 'custom', toggleLabel: 'Custom', badgeLabel: 'CUSTOM' },
 ];
 
 export function getWindowConfig(value) {

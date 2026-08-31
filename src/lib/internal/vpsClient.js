@@ -29,11 +29,13 @@ async function vpsFetch(path) {
   return res.json();
 }
 
-// `range` is either { window: '24h' | '7d' | '30d' } or { since: '<ISO date>' }.
+// `range` is either { window: '24h' | '7d' | '30d' } or
+// { since: '<ISO date>', until?: '<ISO date>' }.
 function buildRangeQuery(range) {
   const params = new URLSearchParams();
   if (range?.since) {
     params.set('since', range.since);
+    if (range?.until) params.set('until', range.until);
   } else {
     params.set('window', range?.window || '24h');
   }

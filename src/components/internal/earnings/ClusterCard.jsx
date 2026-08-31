@@ -18,7 +18,11 @@ const usdFmt = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-function buildRangeQuery(windowValue, onboardedAt) {
+function buildRangeQuery(windowValue, onboardedAt, customRange) {
+  if (windowValue === 'custom' && customRange) {
+    const params = new URLSearchParams({ since: customRange.since, until: customRange.until });
+    return params.toString();
+  }
   return windowValue === 'all'
     ? `since=${encodeURIComponent(onboardedAt)}`
     : `window=${windowValue}`;
@@ -55,8 +59,16 @@ function ClusterHeader({ cluster, children, onEdit, onDelete }) {
   );
 }
 
-function WindowBadge({ activeWindow }) {
+function formatBadgeDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function WindowBadge({ activeWindow, customRange }) {
   const windowConfig = getWindowConfig(activeWindow);
+  const label =
+    activeWindow === 'custom' && customRange?.since && customRange?.until
+      ? `${formatBadgeDate(customRange.since)} – ${formatBadgeDate(customRange.until)}`
+      : windowConfig.badgeLabel;
   return (
     <span
       className={`text-xs font-mono uppercase tracking-wide rounded-full px-3 py-1 border ${
@@ -65,7 +77,7 @@ function WindowBadge({ activeWindow }) {
           : 'text-[#94a3b8] border-white/10'
       }`}
     >
-      {windowConfig.badgeLabel}
+      {label}
     </span>
   );
 }
@@ -140,6 +152,7 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
 
 function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarnings, initialNodes, dailySeries, initialError, onEdit, onDelete }) {
   const [activeWindow, setActiveWindow] = useState(initialWindow);
+  const [customRange, setCustomRange] = useState(null);
   const [earnings, setEarnings] = useState(initialEarnings);
   const [nodes, setNodes] = useState(initialNodes);
   const [error, setError] = useState(initialError);
@@ -147,15 +160,8 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
 
   const uid = cluster.subnet?.uidNumber;
 
-  async function handleWindowChange(nextWindow) {
-    if (nextWindow === activeWindow || loading || !uid) return;
-    if (nextWindow === 'all' && !onboardedAt) return;
-
-    setActiveWindow(nextWindow);
+  async function fetchRange(query) {
     setLoading(true);
-
-    const query = buildRangeQuery(nextWindow, onboardedAt);
-
     try {
       const [earningsRes, nodesRes] = await Promise.all([
         fetch(`/api/internal/uids/${uid}/earnings?${query}`),
@@ -179,17 +185,35 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
     }
   }
 
+  async function handleWindowChange(nextWindow) {
+    if (nextWindow === activeWindow || loading || !uid) return;
+    if (nextWindow === 'all' && !onboardedAt) return;
+
+    setActiveWindow(nextWindow);
+    await fetchRange(buildRangeQuery(nextWindow, onboardedAt));
+  }
+
+  async function handleCustomRangeApply(since, until) {
+    if (loading || !uid) return;
+
+    setCustomRange({ since, until });
+    setActiveWindow('custom');
+    await fetchRange(buildRangeQuery('custom', onboardedAt, { since, until }));
+  }
+
   const { cardCount, earningsPerGpuPerHour } = deriveSubnetEarnings({ earnings, nodes });
 
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
       <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete}>
-        <WindowBadge activeWindow={activeWindow} />
+        <WindowBadge activeWindow={activeWindow} customRange={customRange} />
         <TimeWindowToggle
           activeWindow={activeWindow}
           onChange={handleWindowChange}
+          onCustomApply={handleCustomRangeApply}
           disabled={loading || !uid}
           allTimeDisabled={!onboardedAt}
+          customRange={customRange}
         />
       </ClusterHeader>
 
