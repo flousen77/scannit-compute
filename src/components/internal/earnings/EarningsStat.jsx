@@ -1,6 +1,7 @@
 const TONE_TEXT = {
   positive: 'text-[#06b6d4]',
   negative: 'text-red-400',
+  warning: 'text-amber-400',
 };
 
 export default function EarningsStat({ label, value, unit, accent = false, tone }) {

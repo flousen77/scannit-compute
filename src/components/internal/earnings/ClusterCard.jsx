@@ -10,6 +10,7 @@ import {
   deriveSubnetEarnings,
   deriveContractEarnings,
   computeProfitMetrics,
+  HOURS_PER_MONTH,
 } from '@/lib/internal/clusterEarnings';
 
 const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 });
@@ -159,12 +160,12 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           value={taoEarned != null ? numberFmt.format(taoEarned) : '—'}
           unit={taoEarned != null ? 'TAO' : undefined}
         />
-        <EarningsStat label="USD Realized" value={usdFmt.format(usdRealized)} accent />
         <EarningsStat
           label="Earnings / hr"
           value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
           unit="/hr"
         />
+        <EarningsStat label="USD Realized" value={usdFmt.format(usdRealized)} accent />
         <EarningsStat
           label="MRR (Projected)"
           value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
@@ -332,45 +333,35 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete, onConver
   const { cardCount, onboardedAt } = cluster.contract || {};
   const { earningsPerGpuPerHour } = deriveContractEarnings({ contract: cluster.contract });
   const isForecast = cluster.hostingMode === 'forecast';
+  const hasRequiredFields = Boolean(earningsPerGpuPerHour != null && cardCount && onboardedAt);
 
-  // renderedAtMs comes from the server-rendered page, not Date.now() here —
-  // this file is a Client Component, and SSR + client hydration run at two
-  // different real moments, so reading the clock directly in render would
-  // make elapsedHours (and revenueToDate) differ by a few seconds' worth of
-  // the rate between the two passes, which is enough to flip the last cent
-  // and trip a hydration mismatch.
-  const elapsedHours = onboardedAt
-    ? (renderedAtMs - new Date(onboardedAt).getTime()) / (1000 * 60 * 60)
-    : null;
-
-  const revenueToDate =
-    earningsPerGpuPerHour != null && cardCount && elapsedHours != null
-      ? earningsPerGpuPerHour * cardCount * elapsedHours
-      : null;
-
-  // Revenue to Date is structurally meaningless for a Forecast cluster — it
-  // hasn't started earning. Show a starts-in countdown in its place instead.
+  // Second top-row slot: Forecast hasn't launched yet, so it gets a
+  // launches-in countdown instead of a date already in the past.
   const daysUntil = isForecast ? daysUntilStart(onboardedAt, renderedAtMs) : null;
-  let forecastStatusLabel = '—';
-  let forecastStatusTone;
+  let launchesInValue = '—';
+  let launchesInTone;
   if (daysUntil != null) {
     if (daysUntil > 0) {
-      forecastStatusLabel = `Starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
+      launchesInValue = `${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
     } else if (daysUntil === 0) {
-      forecastStatusLabel = 'Starts today';
-      forecastStatusTone = 'positive';
+      launchesInValue = 'Today';
+      launchesInTone = 'positive';
     } else {
-      forecastStatusLabel = 'Onboarding overdue — convert to live?';
-      forecastStatusTone = 'negative';
+      launchesInValue = 'Overdue';
+      launchesInTone = 'warning';
     }
   }
 
   const {
     revenuePerMonthProjectedTotal: revenuePerMonthProjected,
+    costPerGpuPerHour,
     profitPerGpuPerHour,
     marginPercent,
     profitPerMonthProjected,
   } = computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost: cluster.cost });
+
+  const monthlyCostTotal =
+    costPerGpuPerHour != null && cardCount ? costPerGpuPerHour * cardCount * HOURS_PER_MONTH : null;
 
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
@@ -382,22 +373,30 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete, onConver
         )}
       </ClusterHeader>
 
-      {revenueToDate == null ? (
+      {!hasRequiredFields ? (
         <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
           This cluster is missing a card count or onboarding date — edit it to add them.
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {/* Same 4-up grid and bottom-row field order as Subnet's
+              EarningsRows — position means the same thing on every card
+              type, only the top row's content differs by type. */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <EarningsStat
+              label="Monthly Cost"
+              value={monthlyCostTotal != null ? usdFmt.format(monthlyCostTotal) : '—'}
+              unit={monthlyCostTotal != null ? '/mo' : undefined}
+            />
             <EarningsStat
               label="Contracted Rate"
               value={usdFmt.format(earningsPerGpuPerHour)}
               unit="/hr"
             />
             {isForecast ? (
-              <EarningsStat label="Status" value={forecastStatusLabel} tone={forecastStatusTone} />
+              <EarningsStat label="Launches in" value={launchesInValue} tone={launchesInTone} />
             ) : (
-              <EarningsStat label="Revenue to Date" value={usdFmt.format(revenueToDate)} accent />
+              <EarningsStat label="Onboarded" value={formatBadgeDate(onboardedAt)} />
             )}
             <EarningsStat
               label="MRR (Projected)"
@@ -407,7 +406,12 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete, onConver
           </div>
 
           {cluster.cost && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-white/10">
+              <EarningsStat
+                label="Cost / hr"
+                value={costPerGpuPerHour != null ? usdFmt.format(costPerGpuPerHour) : '—'}
+                unit="/hr"
+              />
               <EarningsStat
                 label="Profit / hr"
                 value={profitPerGpuPerHour != null ? usdFmt.format(profitPerGpuPerHour) : '—'}
