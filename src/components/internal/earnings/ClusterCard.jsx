@@ -5,6 +5,7 @@ import EarningsStat from './EarningsStat';
 import EarningsSparkline from './EarningsSparkline';
 import TimeWindowToggle from './TimeWindowToggle';
 import { getWindowConfig } from '@/lib/internal/windows';
+import { HOSTING_MODE_LABEL, HOSTING_MODE_BADGE_CLASS } from '@/lib/internal/clusterOptions';
 import {
   deriveSubnetEarnings,
   deriveContractEarnings,
@@ -28,7 +29,46 @@ function buildRangeQuery(windowValue, onboardedAt, customRange) {
     : `window=${windowValue}`;
 }
 
-function ClusterHeader({ cluster, children, onEdit, onDelete }) {
+function ConvertToLiveControl({ onConvertTo }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-xs text-[#94a3b8] border border-white/10 rounded-full px-3 py-1.5 hover:text-white hover:border-white/30 transition-colors"
+      >
+        Convert to live ▾
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-10 bg-brand-panel border border-white/10 rounded-lg shadow-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onConvertTo('subnet');
+            }}
+            className="block w-full text-left px-4 py-2 text-xs text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+          >
+            → Subnet
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onConvertTo('contract');
+            }}
+            className="block w-full text-left px-4 py-2 text-xs text-white hover:bg-white/10 transition-colors whitespace-nowrap"
+          >
+            → Enterprise
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClusterHeader({ cluster, children, onEdit, onDelete, onConvertTo }) {
   return (
     <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
       <div>
@@ -37,14 +77,19 @@ function ClusterHeader({ cluster, children, onEdit, onDelete }) {
           <span className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-[#94a3b8]">
             {cluster.computeType}
           </span>
-          <span className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-[#94a3b8] capitalize">
-            {cluster.hostingMode}
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full border ${HOSTING_MODE_BADGE_CLASS[cluster.hostingMode]}`}
+          >
+            {HOSTING_MODE_LABEL[cluster.hostingMode]}
           </span>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
         {children}
+        {cluster.hostingMode === 'forecast' && onConvertTo && (
+          <ConvertToLiveControl onConvertTo={onConvertTo} />
+        )}
         <div className="flex items-center gap-2 text-xs text-[#94a3b8]">
           <button type="button" onClick={onEdit} className="hover:text-white transition-colors">
             Edit
@@ -254,19 +299,39 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
   );
 }
 
-function sinceLabel(onboardedAt) {
+// UTC-based deliberately: renderedAtMs is a single shared number, but this
+// file is a Client Component, so this math runs once during SSR (server,
+// typically UTC) and again during hydration (browser, viewer's local zone).
+// Local-timezone Date methods (setHours, getDate, ...) could round the same
+// instant to a different calendar day in each environment; UTC arithmetic on
+// the same renderedAtMs value can't, so it stays hydration-safe.
+function daysUntilStart(onboardedAt, renderedAtMs) {
+  if (!onboardedAt) return null;
+  const startMs = Date.parse(`${onboardedAt}T00:00:00.000Z`);
+  const todayUtcMidnightMs = Math.floor(renderedAtMs / 86400000) * 86400000;
+  return Math.round((startMs - todayUtcMidnightMs) / 86400000);
+}
+
+function statusBadgeLabel(cluster, onboardedAt, renderedAtMs) {
   if (!onboardedAt) return null;
   const formatted = new Date(onboardedAt).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
+  // A forecast cluster with a future onboarding date hasn't started yet —
+  // "Since" would misleadingly claim it's already live.
+  if (cluster.hostingMode === 'forecast') {
+    const daysUntil = daysUntilStart(onboardedAt, renderedAtMs);
+    if (daysUntil != null && daysUntil > 0) return `Starting ${formatted}`;
+  }
   return `Since ${formatted}`;
 }
 
-function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete }) {
+function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete, onConvertTo }) {
   const { cardCount, onboardedAt } = cluster.contract || {};
   const { earningsPerGpuPerHour } = deriveContractEarnings({ contract: cluster.contract });
+  const isForecast = cluster.hostingMode === 'forecast';
 
   // renderedAtMs comes from the server-rendered page, not Date.now() here —
   // this file is a Client Component, and SSR + client hydration run at two
@@ -283,6 +348,23 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete }) {
       ? earningsPerGpuPerHour * cardCount * elapsedHours
       : null;
 
+  // Revenue to Date is structurally meaningless for a Forecast cluster — it
+  // hasn't started earning. Show a starts-in countdown in its place instead.
+  const daysUntil = isForecast ? daysUntilStart(onboardedAt, renderedAtMs) : null;
+  let forecastStatusLabel = '—';
+  let forecastStatusTone;
+  if (daysUntil != null) {
+    if (daysUntil > 0) {
+      forecastStatusLabel = `Starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
+    } else if (daysUntil === 0) {
+      forecastStatusLabel = 'Starts today';
+      forecastStatusTone = 'positive';
+    } else {
+      forecastStatusLabel = 'Onboarding overdue — convert to live?';
+      forecastStatusTone = 'negative';
+    }
+  }
+
   const {
     revenuePerMonthProjectedTotal: revenuePerMonthProjected,
     profitPerGpuPerHour,
@@ -292,10 +374,10 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete }) {
 
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
-      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete}>
-        {sinceLabel(onboardedAt) && (
+      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete} onConvertTo={onConvertTo}>
+        {statusBadgeLabel(cluster, onboardedAt, renderedAtMs) && (
           <span className="text-xs font-mono uppercase tracking-wide rounded-full px-3 py-1 border text-[#94a3b8] border-white/10">
-            {sinceLabel(onboardedAt)}
+            {statusBadgeLabel(cluster, onboardedAt, renderedAtMs)}
           </span>
         )}
       </ClusterHeader>
@@ -312,7 +394,11 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete }) {
               value={usdFmt.format(earningsPerGpuPerHour)}
               unit="/hr"
             />
-            <EarningsStat label="Revenue to Date" value={usdFmt.format(revenueToDate)} accent />
+            {isForecast ? (
+              <EarningsStat label="Status" value={forecastStatusLabel} tone={forecastStatusTone} />
+            ) : (
+              <EarningsStat label="Revenue to Date" value={usdFmt.format(revenueToDate)} accent />
+            )}
             <EarningsStat
               label="MRR (Projected)"
               value={usdFmt.format(revenuePerMonthProjected)}
@@ -352,9 +438,12 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete }) {
 }
 
 export default function ClusterCard(props) {
-  return props.cluster.hostingMode === 'contract' ? (
-    <ContractClusterCard {...props} />
-  ) : (
+  // 'contract' (Enterprise) and 'forecast' share the same manual-entry
+  // fields and math — ContractClusterCard handles both, deriving label/badge
+  // color and the Convert-to-live control from cluster.hostingMode.
+  return props.cluster.hostingMode === 'subnet' ? (
     <SubnetClusterCard {...props} />
+  ) : (
+    <ContractClusterCard {...props} />
   );
 }
