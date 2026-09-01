@@ -1,6 +1,5 @@
 import { listClusters } from '@/lib/internal/clusterStore';
 import { getEarnings, getNodes, getEarningsSnapshot, getDailyEarnings } from '@/lib/internal/vpsClient';
-import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
 import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard';
 
 // Previously forced dynamic only as a side effect of the old VPS fetch's
@@ -63,8 +62,6 @@ export default async function InternalEarningsPage() {
       ...(await loadClusterData(cluster)),
     }))
   );
-  const portfolioTotals = computePortfolioTotals(clustersWithData);
-
   // Computed once, server-side only, and passed down as a prop rather than
   // read via Date.now() inside a Client Component's render — reading the
   // clock directly there hydration-mismatches, since SSR and the client's
@@ -110,11 +107,7 @@ export default async function InternalEarningsPage() {
           </div>
         )}
 
-        <EarningsDashboard
-          clustersWithData={clustersWithData}
-          renderedAtMs={renderedAtMs}
-          portfolioTotals={portfolioTotals}
-        />
+        <EarningsDashboard clustersWithData={clustersWithData} renderedAtMs={renderedAtMs} />
       </div>
     </div>
   );

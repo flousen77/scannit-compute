@@ -1,15 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClusterCard from './ClusterCard';
 import ClusterFormModal from './ClusterFormModal';
 import PortfolioTotalsBar from './PortfolioTotalsBar';
+import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
 
-export default function EarningsDashboard({ clustersWithData, renderedAtMs, portfolioTotals }) {
+export default function EarningsDashboard({ clustersWithData, renderedAtMs }) {
   const router = useRouter();
   const [formTarget, setFormTarget] = useState(null); // null | 'new' | cluster object
-  const [segmentFilter, setSegmentFilter] = useState('all'); // 'all' | 'subnet' | 'contract'
+  const [convertTarget, setConvertTarget] = useState(null); // null | { cluster, targetMode }
+  const [segmentFilter, setSegmentFilter] = useState('all'); // 'all' | 'subnet' | 'contract' | 'forecast'
+  const [includeForecast, setIncludeForecast] = useState(false);
+
+  // Recomputed client-side (not passed down from the server component) so
+  // toggling "include forecast in totals" updates the bar instantly without
+  // a round trip — computePortfolioTotals is pure/framework-agnostic exactly
+  // so it can run in either place.
+  const portfolioTotals = useMemo(
+    () => computePortfolioTotals(clustersWithData, { includeForecast }),
+    [clustersWithData, includeForecast]
+  );
 
   const filteredClusters =
     segmentFilter === 'all'
@@ -18,6 +30,7 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, port
 
   function closeForm() {
     setFormTarget(null);
+    setConvertTarget(null);
   }
 
   function handleSaved() {
@@ -37,12 +50,29 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, port
     }
   }
 
+  // Convert reuses the same modal/PUT flow as editing — the modal starts on
+  // targetMode's fields instead of the cluster's current hostingMode, and
+  // saving PUTs to the same id, so cost/creation history (the existing
+  // record) is preserved rather than a new cluster being created.
+  function handleConvertTo(cluster, targetMode) {
+    setConvertTarget({ cluster, targetMode });
+  }
+
+  const activeModalCluster = convertTarget
+    ? convertTarget.cluster
+    : formTarget === 'new'
+      ? null
+      : formTarget;
+  const modalOpen = Boolean(formTarget || convertTarget);
+
   return (
     <div>
       <PortfolioTotalsBar
         totals={portfolioTotals}
         activeFilter={segmentFilter}
         onFilterChange={setSegmentFilter}
+        includeForecast={includeForecast}
+        onIncludeForecastChange={setIncludeForecast}
       />
 
       <div className="flex justify-end mb-4">
@@ -74,13 +104,15 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, port
             initialError={error}
             onEdit={() => setFormTarget(cluster)}
             onDelete={() => handleDelete(cluster)}
+            onConvertTo={(targetMode) => handleConvertTo(cluster, targetMode)}
           />
         ))}
       </div>
 
-      {formTarget && (
+      {modalOpen && (
         <ClusterFormModal
-          cluster={formTarget === 'new' ? null : formTarget}
+          cluster={activeModalCluster}
+          initialHostingMode={convertTarget?.targetMode}
           onClose={closeForm}
           onSaved={handleSaved}
         />

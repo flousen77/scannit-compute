@@ -74,29 +74,39 @@ export function computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost })
 // is a separate, narrower revenue sum restricted to cost-tracked clusters
 // only, so that percentage stays internally consistent with the profit
 // figures it's dividing.
-export function computePortfolioTotals(clustersWithData) {
+//
+// Forecast clusters always get their own subtotals (so the Forecast segment
+// card always has numbers), but only fold into the Total figures when
+// `includeForecast` is set — they're hypothetical, not live, so Total
+// defaults to excluding them.
+export function computePortfolioTotals(clustersWithData, { includeForecast = false } = {}) {
   let totalClusters = 0;
   let subnetCount = 0;
   let contractCount = 0;
+  let forecastCount = 0;
   let clustersWithCost = 0;
   let clustersWithRevenue = 0;
   let totalProfitPerMonth = 0;
   let subnetProfitPerMonth = 0;
   let contractProfitPerMonth = 0;
+  let forecastProfitPerMonth = 0;
   let totalRevenuePerMonth = 0;
   let subnetRevenuePerMonth = 0;
   let contractRevenuePerMonth = 0;
+  let forecastRevenuePerMonth = 0;
   let revenueForMarginDenominator = 0;
   let subnetRevenueForMargin = 0;
   let contractRevenueForMargin = 0;
+  let forecastRevenueForMargin = 0;
 
   for (const { cluster, earnings, nodes } of clustersWithData) {
     totalClusters += 1;
-    const isSubnet = cluster.hostingMode === 'subnet';
-    if (isSubnet) subnetCount += 1;
-    else contractCount += 1;
+    const mode = cluster.hostingMode;
+    if (mode === 'subnet') subnetCount += 1;
+    else if (mode === 'contract') contractCount += 1;
+    else forecastCount += 1;
 
-    const { cardCount, earningsPerGpuPerHour } = isSubnet
+    const { cardCount, earningsPerGpuPerHour } = mode === 'subnet'
       ? deriveSubnetEarnings({ earnings, nodes })
       : deriveContractEarnings({ contract: cluster.contract });
 
@@ -106,24 +116,32 @@ export function computePortfolioTotals(clustersWithData) {
       cost: cluster.cost,
     });
 
+    const countsTowardTotal = mode !== 'forecast' || includeForecast;
+
     if (revenuePerMonthProjectedTotal != null) {
       clustersWithRevenue += 1;
-      totalRevenuePerMonth += revenuePerMonthProjectedTotal;
-      if (isSubnet) subnetRevenuePerMonth += revenuePerMonthProjectedTotal;
-      else contractRevenuePerMonth += revenuePerMonthProjectedTotal;
+      if (countsTowardTotal) totalRevenuePerMonth += revenuePerMonthProjectedTotal;
+      if (mode === 'subnet') subnetRevenuePerMonth += revenuePerMonthProjectedTotal;
+      else if (mode === 'contract') contractRevenuePerMonth += revenuePerMonthProjectedTotal;
+      else forecastRevenuePerMonth += revenuePerMonthProjectedTotal;
     }
 
     if (!cluster.cost || profitPerMonthProjected == null) continue;
 
     clustersWithCost += 1;
-    totalProfitPerMonth += profitPerMonthProjected;
-    revenueForMarginDenominator += revenuePerMonthProjectedTotal;
-    if (isSubnet) {
+    if (countsTowardTotal) {
+      totalProfitPerMonth += profitPerMonthProjected;
+      revenueForMarginDenominator += revenuePerMonthProjectedTotal;
+    }
+    if (mode === 'subnet') {
       subnetProfitPerMonth += profitPerMonthProjected;
       subnetRevenueForMargin += revenuePerMonthProjectedTotal;
-    } else {
+    } else if (mode === 'contract') {
       contractProfitPerMonth += profitPerMonthProjected;
       contractRevenueForMargin += revenuePerMonthProjectedTotal;
+    } else {
+      forecastProfitPerMonth += profitPerMonthProjected;
+      forecastRevenueForMargin += revenuePerMonthProjectedTotal;
     }
   }
 
@@ -134,14 +152,17 @@ export function computePortfolioTotals(clustersWithData) {
     totalClusters,
     subnetCount,
     contractCount,
+    forecastCount,
     clustersWithCost,
     clustersWithRevenue,
     totalProfitPerMonth: hasCostData ? totalProfitPerMonth : null,
     subnetProfitPerMonth: hasCostData ? subnetProfitPerMonth : null,
     contractProfitPerMonth: hasCostData ? contractProfitPerMonth : null,
+    forecastProfitPerMonth: hasCostData ? forecastProfitPerMonth : null,
     totalRevenuePerMonth: hasRevenueData ? totalRevenuePerMonth : null,
     subnetRevenuePerMonth: hasRevenueData ? subnetRevenuePerMonth : null,
     contractRevenuePerMonth: hasRevenueData ? contractRevenuePerMonth : null,
+    forecastRevenuePerMonth: hasRevenueData ? forecastRevenuePerMonth : null,
     totalMarginPercent:
       hasCostData && revenueForMarginDenominator
         ? (totalProfitPerMonth / revenueForMarginDenominator) * 100
@@ -153,6 +174,10 @@ export function computePortfolioTotals(clustersWithData) {
     contractMarginPercent:
       hasCostData && contractRevenueForMargin
         ? (contractProfitPerMonth / contractRevenueForMargin) * 100
+        : null,
+    forecastMarginPercent:
+      hasCostData && forecastRevenueForMargin
+        ? (forecastProfitPerMonth / forecastRevenueForMargin) * 100
         : null,
   };
 }

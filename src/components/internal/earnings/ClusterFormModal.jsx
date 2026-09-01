@@ -1,17 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { COMPUTE_TYPE_SUGGESTIONS, SUBNET_PLATFORMS, COST_MODES } from '@/lib/internal/clusterOptions';
+import { COMPUTE_TYPE_SUGGESTIONS, SUBNET_PLATFORMS, COST_MODES, HOSTING_MODES } from '@/lib/internal/clusterOptions';
+import DarkCalendar, { dateStrToLocalDate, localDateToDateStr } from './DarkCalendar';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function initialFormState(cluster) {
+// hostingModeOverride is used by the "Convert to live" flow — it opens this
+// same modal pre-filled with the forecast cluster's data, but starting on
+// the target mode's fields instead of "forecast", so the missing fields
+// (e.g. a subnet UID) are the only thing left to fill in.
+function initialFormState(cluster, hostingModeOverride) {
   return {
     name: cluster?.name || '',
     computeType: cluster?.computeType || '',
-    hostingMode: cluster?.hostingMode || 'subnet',
+    hostingMode: hostingModeOverride || cluster?.hostingMode || 'subnet',
     subnetPlatform: cluster?.subnet?.platform || SUBNET_PLATFORMS[0],
     subnetUidNumber: cluster?.subnet?.uidNumber ?? '',
     contractPricePerHourUsd: cluster?.contract?.pricePerHourUsd ?? '',
@@ -51,12 +56,51 @@ const inputClass =
   'w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-[#94a3b8]/60 focus:outline-none focus:border-[#06b6d4] transition-colors';
 const labelClass = 'text-xs uppercase tracking-wide text-[#94a3b8] mb-1.5 block';
 
-export default function ClusterFormModal({ cluster, onClose, onSaved }) {
-  const [form, setForm] = useState(() => initialFormState(cluster));
+// Onboarding dates can legitimately be in the future (a Forecast cluster
+// that hasn't started yet), so this deliberately has no max-date constraint
+// — unlike the time-window range pickers, which cap at "today".
+function DateField({ label, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const selectedDate = dateStrToLocalDate(value);
+  const displayLabel = value
+    ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : 'Select a date';
+
+  return (
+    <div className="relative">
+      <label className={labelClass}>{label}</label>
+      <button type="button" onClick={() => setOpen((o) => !o)} className={`${inputClass} text-left`}>
+        {displayLabel}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-2 z-20 bg-[#050508] border border-white/10 rounded-xl p-3 shadow-xl">
+          <DarkCalendar
+            mode="single"
+            selected={selectedDate}
+            defaultMonth={selectedDate}
+            onSelect={(date) => {
+              if (!date) return;
+              onChange(localDateToDateStr(date));
+              setOpen(false);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ClusterFormModal({ cluster, initialHostingMode, onClose, onSaved }) {
+  const [form, setForm] = useState(() => initialFormState(cluster, initialHostingMode));
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const isEditing = Boolean(cluster);
+  const isConverting = Boolean(cluster && initialHostingMode && initialHostingMode !== cluster.hostingMode);
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -92,7 +136,7 @@ export default function ClusterFormModal({ cluster, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-5 z-50">
       <div className="w-full max-w-md bg-brand-panel border border-white/10 rounded-2xl p-6 backdrop-blur max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-semibold text-white mb-5">
-          {isEditing ? 'Edit Cluster' : 'Add Cluster'}
+          {isConverting ? 'Convert to Live' : isEditing ? 'Edit Cluster' : 'Add Cluster'}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -129,20 +173,23 @@ export default function ClusterFormModal({ cluster, onClose, onSaved }) {
           <div>
             <label className={labelClass}>Hosting Mode</label>
             <div className="inline-flex items-center gap-1 bg-black/30 border border-white/10 rounded-full p-1">
-              {['subnet', 'contract'].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => update('hostingMode', mode)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-full capitalize transition-colors ${
-                    form.hostingMode === mode
-                      ? 'bg-white text-[#050508]'
-                      : 'text-[#94a3b8] hover:text-white'
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
+              {/* Converting from Forecast can only target a live mode — Forecast itself isn't a valid conversion target. */}
+              {(isConverting ? HOSTING_MODES.filter((m) => m.value !== 'forecast') : HOSTING_MODES).map(
+                (mode) => (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    onClick={() => update('hostingMode', mode.value)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                      form.hostingMode === mode.value
+                        ? 'bg-white text-[#050508]'
+                        : 'text-[#94a3b8] hover:text-white'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                )
+              )}
             </div>
           </div>
 
@@ -204,16 +251,11 @@ export default function ClusterFormModal({ cluster, onClose, onSaved }) {
                   />
                 </div>
               </div>
-              <div>
-                <label className={labelClass}>Onboarded At</label>
-                <input
-                  type="date"
-                  required
-                  value={form.contractOnboardedAt}
-                  onChange={(e) => update('contractOnboardedAt', e.target.value)}
-                  className={inputClass}
-                />
-              </div>
+              <DateField
+                label="Onboarded At"
+                value={form.contractOnboardedAt}
+                onChange={(v) => update('contractOnboardedAt', v)}
+              />
             </div>
           )}
 

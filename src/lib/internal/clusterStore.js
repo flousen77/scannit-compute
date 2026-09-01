@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { SUBNET_PLATFORMS, COST_MODES } from './clusterOptions';
+import { SUBNET_PLATFORMS, COST_MODES, CONTRACT_SHAPED_MODES } from './clusterOptions';
 import { readClusters, writeClusters } from './clusterStorage';
 
 const COST_MODE_VALUES = COST_MODES.map((m) => m.value);
@@ -43,7 +43,7 @@ function normalizeClusterInput(input) {
     };
   }
 
-  if (input.hostingMode === 'contract') {
+  if (CONTRACT_SHAPED_MODES.includes(input.hostingMode)) {
     const pricePerHourUsd = Number(input.contract?.pricePerHourUsd);
     if (!Number.isFinite(pricePerHourUsd) || pricePerHourUsd < 0) {
       throw new Error('contract.pricePerHourUsd must be a non-negative number');
@@ -60,14 +60,14 @@ function normalizeClusterInput(input) {
     return {
       name,
       computeType,
-      hostingMode: 'contract',
+      hostingMode: input.hostingMode,
       subnet: null,
       contract: { pricePerHourUsd, cardCount, onboardedAt },
       cost: normalizeCost(input.cost),
     };
   }
 
-  throw new Error('hostingMode must be "subnet" or "contract"');
+  throw new Error('hostingMode must be "subnet", "contract", or "forecast"');
 }
 
 export async function listClusters() {
