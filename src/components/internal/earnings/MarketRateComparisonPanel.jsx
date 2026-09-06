@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { formatRelativeTime } from '@/lib/internal/dateRanges';
 
 // gpu_type strings arriving from Redis are already canonicalized upstream
@@ -46,9 +47,10 @@ const DEFAULT_CONFIDENCE_CLASS = 'text-brand-muted border-white/10 bg-white/[0.0
 // source, and with the literal "N" dropped since no per-row basis field
 // exists in the real payload to fill it with (checked: rows are only
 // {gpu_type, source, current_rate_per_hr, avg_7d_rate_per_hr,
-// confidence_tier, last_synced}). Targon has no example given and uses a
-// different tier vocabulary (OK/DERIVED_ESTIMATE) than the others, so it's
-// deliberately left unmapped rather than guessed.
+// confidence_tier, last_synced}). Targon uses a different tier vocabulary
+// (OK/DERIVED_ESTIMATE) than the others, so it's deliberately left unmapped
+// here rather than guessed — its DERIVED_ESTIMATE tier has a real, known
+// explanation instead, in CONFIDENCE_BASIS_BY_TIER below.
 const CONFIDENCE_BASIS_BY_SOURCE = {
   chutes: 'Chutes: based on qualifying miners observed for this GPU type.',
   lium: 'Lium: based on GPUs listed for this GPU type.',
@@ -56,6 +58,16 @@ const CONFIDENCE_BASIS_BY_SOURCE = {
   runpod_secure: 'RunPod: platform-reported availability tier.',
   runpod_community: 'RunPod: platform-reported availability tier.',
 };
+
+// Tier-specific explanations that hold regardless of source, checked before
+// the per-source rules above — DERIVED_ESTIMATE's meaning is fixed and known
+// (unlike a source's generic sampling rule), so it should never fall through
+// to the "not yet documented" default.
+const CONFIDENCE_BASIS_BY_TIER = {
+  DERIVED_ESTIMATE:
+    "Targon has no live miners for this GPU type — rate is extrapolated from Targon's own published max_price using the calibrated Kraken/Targon price-correction ratio, not observed from an actual miner.",
+};
+
 const DEFAULT_CONFIDENCE_BASIS =
   'Basis not yet documented for this source — check consolidate/LEARNINGS.md once available.';
 
@@ -63,7 +75,11 @@ function confidenceTooltip(row) {
   // Checked first in case the backend ever adds a per-row basis field —
   // none exists in the payload today, so this always falls through.
   if (row.confidence_basis) return row.confidence_basis;
-  return CONFIDENCE_BASIS_BY_SOURCE[row.source] ?? DEFAULT_CONFIDENCE_BASIS;
+  return (
+    CONFIDENCE_BASIS_BY_TIER[row.confidence_tier] ??
+    CONFIDENCE_BASIS_BY_SOURCE[row.source] ??
+    DEFAULT_CONFIDENCE_BASIS
+  );
 }
 
 const usdFmt = new Intl.NumberFormat('en-US', {
@@ -107,7 +123,7 @@ function findTopPayer(rows) {
 
 function ScoreCard({ rows }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {GPU_TABS.map((tab) => {
         const tabRows = rows.filter((r) => r.gpu_type.startsWith(tab.prefix));
         const top = findTopPayer(tabRows);
@@ -129,6 +145,58 @@ function ScoreCard({ rows }) {
         );
       })}
     </div>
+  );
+}
+
+// Native `title` attributes have an inconsistent/long OS hover delay, can't
+// be styled, and (relevant here) don't reliably render at all in some
+// environments — replaced with a real hover/focus-triggered tooltip.
+// Rendered via a portal into document.body with `position: fixed` coords
+// from getBoundingClientRect(), rather than CSS-relative positioning, so it
+// can't get clipped by the table's `overflow-x-auto` wrapper.
+function ConfidenceBadge({ row }) {
+  const [coords, setCoords] = useState(null);
+  const ref = useRef(null);
+
+  const show = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) setCoords({ top: rect.top, left: rect.left + rect.width / 2 });
+  };
+  const hide = () => setCoords(null);
+
+  return (
+    <span className="relative inline-block">
+      <span
+        ref={ref}
+        tabIndex={0}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap cursor-help outline-none focus-visible:ring-1 focus-visible:ring-brand-cyan ${
+          CONFIDENCE_BADGE_CLASS[row.confidence_tier] ?? DEFAULT_CONFIDENCE_CLASS
+        }`}
+      >
+        {row.confidence_tier}
+      </span>
+      {coords &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            role="tooltip"
+            style={{
+              position: 'fixed',
+              top: coords.top - 8,
+              left: coords.left,
+              transform: 'translate(-50%, -100%)',
+            }}
+            className="z-50 w-max max-w-[240px] px-3 py-2 rounded-lg bg-brand-dark border border-white/15 text-xs leading-snug text-white shadow-xl pointer-events-none"
+          >
+            {confidenceTooltip(row)}
+          </div>,
+          document.body
+        )}
+    </span>
   );
 }
 
@@ -168,14 +236,7 @@ function VariantTable({ rows }) {
                   {row.avg_7d_rate_per_hr != null ? usdFmt.format(row.avg_7d_rate_per_hr) : '—'}
                 </td>
                 <td className="py-2 pr-4">
-                  <span
-                    title={confidenceTooltip(row)}
-                    className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap cursor-help ${
-                      CONFIDENCE_BADGE_CLASS[row.confidence_tier] ?? DEFAULT_CONFIDENCE_CLASS
-                    }`}
-                  >
-                    {row.confidence_tier}
-                  </span>
+                  <ConfidenceBadge row={row} />
                 </td>
                 <td className="py-2 font-mono text-white">{mrr != null ? usdFmt0.format(mrr) : '—'}</td>
               </tr>
@@ -212,8 +273,6 @@ export default function MarketRateComparisonPanel({ marketRates }) {
 
   return (
     <div className="mb-6">
-      <ScoreCard rows={rows} />
-
       <div className="bg-brand-panel border border-white/10 rounded-2xl overflow-hidden">
         <button
           type="button"
@@ -224,6 +283,10 @@ export default function MarketRateComparisonPanel({ marketRates }) {
             Market Rate Comparison {expanded ? '▾' : '▸'}
           </span>
         </button>
+
+        <div className="px-6 pb-4 border-t border-white/10 pt-4">
+          <ScoreCard rows={rows} />
+        </div>
 
         {expanded && (
           <div className="px-6 pb-6 border-t border-white/10 pt-4">
