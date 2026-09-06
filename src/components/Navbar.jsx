@@ -11,7 +11,7 @@ export default function Navbar({ openModal }) {
           </a>
           <div className="nav-actions">
             <a href="/node" className="investor-link">
-              <i className="fas fa-network-wired"></i> Network & Yield
+              <i className="fas fa-network-wired"></i> Node Program
             </a>
             <button onClick={openModal} className="btn btn-primary btn-nav">
               Reserve Compute

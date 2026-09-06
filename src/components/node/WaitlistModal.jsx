@@ -4,9 +4,8 @@ import { useState } from 'react';
 
 const MAKE_WAITLIST_WEBHOOK = 'https://hook.us2.make.com/78lh6v46ncg8qq790k5hg9fphyfjnz2v';
 
-export default function WaitlistModal({ isOpen, onClose, selectedTier, setSelectedTier, isSubmitted, setIsSubmitted }) {
+export default function WaitlistModal({ isOpen, onClose, isSubmitted, setIsSubmitted }) {
   const [email, setEmail] = useState('');
-  const [wallet, setWallet] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -37,24 +36,20 @@ export default function WaitlistModal({ isOpen, onClose, selectedTier, setSelect
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          tier: selectedTier,
-          wallet: wallet || 'Nicht angegeben',
           country,
           timestamp: new Date().toISOString(),
-          source: 'Phase 1 Order Book Modal'
+          source: 'Node Program Waitlist Modal'
         }),
         mode: 'no-cors'
       });
 
       setIsSubmitted(true);
       setEmail('');
-      setWallet('');
     } catch (error) {
       console.error('Waitlist Submission Error:', error);
       // Fallback
       setIsSubmitted(true);
       setEmail('');
-      setWallet('');
     } finally {
       setIsSubmitting(false);
     }
@@ -67,8 +62,8 @@ export default function WaitlistModal({ isOpen, onClose, selectedTier, setSelect
         
         {!isSubmitted ? (
           <div>
-            <h3 className="text-2xl font-bold text-white mb-2">Join Phase 1 Waitlist</h3>
-            <p className="text-[#94a3b8] text-sm mb-6">Secure your position for the upcoming hardware expansion phase.</p>
+            <h3 className="text-2xl font-bold text-white mb-2">Join the Waitlist</h3>
+            <p className="text-[#94a3b8] text-sm mb-6">We&apos;ll let you know when network participation opens. Nothing is on sale yet.</p>
             
             <form onSubmit={handleSubmit}>
               <div className="mb-5">
@@ -83,48 +78,20 @@ export default function WaitlistModal({ isOpen, onClose, selectedTier, setSelect
                 />
               </div>
               
-              <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#94a3b8] mb-2">Target Capital Allocation</label>
-                <select 
-                  value={selectedTier} 
-                  onChange={(e) => setSelectedTier(e.target.value)} 
-                  required 
-                  className="w-full p-3 bg-[#0a0a0f] border border-white/10 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-[#06b6d4]"
-                >
-                  <option value="">Select Tier...</option>
-                  <option value="100">$100 - Starter Share</option>
-                  <option value="1000">$1,000 - Pro Pod</option>
-                  <option value="5000">$5,000 - Node Runner</option>
-                  <option value="25000">$25,000 - Institutional</option>
-                  <option value="100000">$100k+ - Dedicated Node</option>
-                </select>
-              </div>
-
-              <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#94a3b8] mb-2">Web3 Wallet Address (Optional)</label>
-                <input 
-                  type="text" 
-                  value={wallet}
-                  onChange={(e) => setWallet(e.target.value)}
-                  placeholder="0x... or Solana Address" 
-                  className="w-full p-3 bg-white/[0.03] border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#06b6d4]" 
-                />
-              </div>
-
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={isSubmitting}
                 className="w-full bg-white text-[#050508] border border-white hover:bg-transparent hover:text-[#06b6d4] hover:border-[#06b6d4] font-semibold py-3 rounded-lg transition-all mt-2 disabled:opacity-50"
               >
-                {isSubmitting ? 'Securing Position...' : 'Secure Waitlist Position'}
+                {isSubmitting ? 'Joining...' : 'Join the Waitlist'}
               </button>
             </form>
           </div>
         ) : (
           <div className="text-center py-10">
             <i className="fas fa-check-circle text-5xl text-[#06b6d4] mb-4"></i>
-            <h3 className="text-2xl font-bold text-white mb-2">Position Secured</h3>
-            <p className="text-[#94a3b8]">We will notify you when Phase 1 allocations open.</p>
+            <h3 className="text-2xl font-bold text-white mb-2">You&apos;re on the list</h3>
+            <p className="text-[#94a3b8]">We&apos;ll be in touch when network participation opens.</p>
             <button onClick={onClose} className="mt-6 border border-white/10 text-white px-6 py-2 rounded-full hover:border-white">Close Window</button>
           </div>
         )}

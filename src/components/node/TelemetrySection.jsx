@@ -1,6 +1,39 @@
 'use client';
 
-export default function TelemetrySection({ timeframe, setTimeframe, currentData, isLoading, openModal }) {
+import { useEffect, useState } from 'react';
+
+const CARD_ICONS = {
+  'RTX PRO 6000': 'fa-microchip',
+  B200: 'fa-server',
+  B300: 'fa-network-wired',
+  H100: 'fa-layer-group',
+  H200: 'fa-cubes',
+};
+
+const usd = (value) => `$${value.toFixed(2)}`;
+
+// Sources can agree exactly (or a GPU can have a single observed source), in
+// which case a "$x – $x" range would just read as a formatting bug.
+function formatRange(range) {
+  if (!range) return null;
+  return range.low === range.high ? usd(range.low) : `${usd(range.low)} – ${usd(range.high)}`;
+}
+
+export default function TelemetrySection({ openModal }) {
+  const [basis, setBasis] = useState('current');
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/market-rates')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then(setData)
+      .catch(() => setFailed(true));
+  }, []);
+
+  const gpus = data?.gpus ?? [];
+  const isLoading = !data && !failed;
+
   return (
     <section id="telemetry" className="py-12 relative z-10 px-5">
 {/* Exakt getaktete Micro-Pause (2-3%) an der Gabelung für ein organisches Gefühl */}
@@ -30,87 +63,104 @@ export default function TelemetrySection({ timeframe, setTimeframe, currentData,
         {/* Header */}
         <div className="text-center mb-16">
           <span className="text-xs font-bold text-[#06b6d4] tracking-widest uppercase mb-4 inline-block px-4 py-1.5 rounded-full border border-[#06b6d4]/20 bg-[#06b6d4]/5 shadow-[0_0_15px_rgba(6,182,212,0.1)]">
-            Performance Arbitrage
+            Network Telemetry
           </span>
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 tracking-tight">
-            Hyperscalers leave millions on the table.<br />
-            <span className="text-[#06b6d4]">We capture every cent.</span>
+            Hardware built to stay busy.<br />
+            <span className="text-[#06b6d4]">See what compute like ours rents for.</span>
           </h2>
+          <p className="text-[#94a3b8] max-w-2xl mx-auto text-base leading-relaxed">
+            Workloads route across Chutes, Targon, Lium, Vast.ai and RunPod toward the best
+            available rate at the time they run.
+          </p>
         </div>
 
-        {/* Timeframe Toggle */}
+        {/* Time-basis Toggle */}
         <div className="text-center mb-10">
           <div className="inline-flex bg-white/5 border border-white/10 rounded-lg p-1">
-            {['24H', '7D', '30D'].map((period) => (
+            {[
+              { key: 'current', label: 'Now' },
+              { key: 'avg_7d', label: '7D Avg' },
+            ].map((option) => (
               <button
-                key={period}
-                onClick={() => setTimeframe(period)}
+                key={option.key}
+                onClick={() => setBasis(option.key)}
                 className={`px-5 py-2 text-xs font-medium rounded transition-all ${
-                  timeframe === period ? 'bg-white/10 text-white' : 'text-[#94a3b8] hover:text-white'
+                  basis === option.key ? 'bg-white/10 text-white' : 'text-[#94a3b8] hover:text-white'
                 }`}
               >
-                {period}
+                {option.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* KPI Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-          {[
-            { key: 'rtx', name: 'NVIDIA RTX Pro 6000', icon: 'fa-microchip', validation: 'Live Node Feed' },
-            { key: 'b200', name: 'NVIDIA HGX B200', icon: 'fa-server', validation: 'Spot Benchmark' },
-            { key: 'b300', name: 'NVIDIA B300 Ultra', icon: 'fa-network-wired', validation: 'High-Density Est.' }
-          ].map((card) => {
-            const data = currentData[card.key];
-            return (
-              <div 
-                key={card.key}
-                className={`bg-white/[0.02] border border-white/5 hover:border-white/10 hover:bg-white/[0.03] rounded-2xl p-8 transition-all ${
-                  isLoading ? 'opacity-30' : 'opacity-100'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
-                  <i className={`fas ${card.icon} text-slate-500 text-xl`}></i>
-                  <h3 className="text-lg font-bold text-white">{card.name}</h3>
-                </div>
-                <div className="text-[0.75rem] text-[#64748b] uppercase tracking-wider font-semibold">Projected Fleet Output</div>
-                <div className="text-4xl font-extrabold text-white tracking-tight my-2">
-                  ${data.yield.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <div className="text-xs text-slate-500 mb-8 font-mono">Denominated in USD</div>
-                
-                <div className="space-y-4 text-xs font-mono">
-                  <div className="flex justify-between items-center border-b border-white/[0.02] pb-2">
-                    <span className="text-slate-500 font-bold tracking-wider">EST. NETWORK APY</span>
-                    <span className="text-[#06b6d4] font-bold">~{data.apy.toFixed(1)}%</span>
+        {/* Market Rate Cards */}
+        {failed ? (
+          <div className="text-center text-sm text-slate-500 font-mono py-12">
+            Live rates are temporarily unavailable.
+          </div>
+        ) : (
+          // Flex-wrap rather than a grid so a trailing partial row centres
+          // instead of leaving a hole on the right at five cards.
+          <div className="flex flex-wrap justify-center gap-6 text-left">
+            {isLoading
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="basis-full md:basis-[calc(50%-0.75rem)] lg:basis-[calc(33.333%-1rem)] bg-white/[0.02] border border-white/5 rounded-2xl p-8 h-[260px] animate-pulse"
+                  />
+                ))
+              : gpus.map((gpu) => (
+                  <div
+                    key={gpu.key}
+                    className="basis-full md:basis-[calc(50%-0.75rem)] lg:basis-[calc(33.333%-1rem)] bg-white/[0.02] border border-white/5 hover:border-[#06b6d4]/50 hover:bg-[#06b6d4]/[0.04] hover:shadow-[0_0_25px_rgba(6,182,212,0.15)] rounded-2xl p-8 transition-all"
+                  >
+                    <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+                      <i className={`fas ${CARD_ICONS[gpu.key] ?? 'fa-microchip'} text-slate-500 text-xl`}></i>
+                      <h3 className="text-lg font-bold text-white">{gpu.label}</h3>
+                    </div>
+
+                    <div className="text-[0.75rem] text-[#64748b] uppercase tracking-wider font-semibold">
+                      Observed Market Rate
+                    </div>
+                    <div className="text-3xl font-extrabold text-white tracking-tight my-2">
+                      {formatRange(gpu[basis]) ?? '—'}
+                      <span className="text-base font-semibold text-slate-500 ml-1">/hr</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mb-8 font-mono">
+                      {basis === 'current' ? 'Latest sync' : '7-day average'}
+                    </div>
+
+                    <div className="space-y-4 text-xs font-mono">
+                      <div className="flex justify-between items-center border-b border-white/[0.02] pb-2 gap-4">
+                        <span className="text-slate-500 font-bold tracking-wider shrink-0">
+                          {gpu.sources.length > 1 ? 'SOURCES' : 'SOURCE'}
+                        </span>
+                        <span className="text-[#94a3b8] text-right">{gpu.sources.join(', ')}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-bold tracking-wider">NETWORK STATUS</span>
+                        <span className="text-[#94a3b8]">Operational</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center border-b border-white/[0.02] pb-2">
-                    <span className="text-slate-500 font-bold tracking-wider">MONETIZATION RATE</span>
-                    <span className="text-gray-300">{data.util.toFixed(1)}% Monetized</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b border-white/[0.02] pb-2">
-                    <span className="text-slate-500 font-bold tracking-wider">NETWORK STATUS</span>
-                    <span className={data.status === 'Surging' || data.status === 'Peak Demand' ? 'text-[#06b6d4]' : 'text-[#94a3b8]'}>
-                      {data.status}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-bold tracking-wider">VALIDATION</span>
-                    <span className="text-slate-400">{card.validation}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                ))}
+          </div>
+        )}
+
+        <p className="mt-8 text-xs text-slate-500 leading-relaxed max-w-3xl mx-auto text-center">
+          Observed listing rates for comparable hardware on third-party GPU marketplaces, not
+          Scannit earnings. Sample depth varies by platform and not every platform lists every
+          GPU. Updated twice daily. Not a projection of returns.
+        </p>
 
           <div className="mt-16 text-center relative z-10">
-            <a 
-              href="#waitlist" 
+            <a
+              href="#waitlist"
              className="inline-block bg-white text-[#050508] border border-white hover:bg-transparent hover:text-[#06b6d4] hover:border-[#06b6d4] px-8 py-3 rounded-full font-semibold transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(6,182,212,0.3)]"
            >
-              Secure Phase 1 Allocation
+              Join the Waitlist
             </a>
           </div>
 
