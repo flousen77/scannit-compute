@@ -29,3 +29,17 @@ export function lastMonthRange() {
     until: isoDate(y, m, lastDayOfPrevMonth.getUTCDate()),
   };
 }
+
+// Shared "as of X ago" formatting — used both server-side (page.jsx, safe
+// since Server Components never re-run on the client) and inside client
+// components whose relative-time text only ever renders after a user
+// interaction (e.g. expanding a collapsed panel), never during the initial
+// SSR/hydration pass, so there's no mismatch risk either way.
+export function formatRelativeTime(ms) {
+  const minutes = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (minutes < 1) return 'just now';
+  if (minutes === 1) return '1 min ago';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hr${hours === 1 ? '' : 's'} ago`;
+}

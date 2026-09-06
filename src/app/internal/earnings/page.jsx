@@ -1,5 +1,12 @@
 import { listClusters } from '@/lib/internal/clusterStore';
-import { getEarnings, getNodes, getEarningsSnapshot, getDailyEarnings } from '@/lib/internal/vpsClient';
+import {
+  getEarnings,
+  getNodes,
+  getEarningsSnapshot,
+  getDailyEarnings,
+  getMarketRates,
+} from '@/lib/internal/vpsClient';
+import { formatRelativeTime } from '@/lib/internal/dateRanges';
 import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard';
 
 // Previously forced dynamic only as a side effect of the old VPS fetch's
@@ -10,15 +17,6 @@ import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard'
 export const dynamic = 'force-dynamic';
 
 const INITIAL_WINDOW = '24h';
-
-function formatSyncedAgo(iso) {
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (minutes < 1) return 'just now';
-  if (minutes === 1) return '1 min ago';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  return `${hours} hr${hours === 1 ? '' : 's'} ago`;
-}
 
 async function loadClusterData(cluster) {
   if (cluster.hostingMode !== 'subnet') {
@@ -62,6 +60,11 @@ export default async function InternalEarningsPage() {
       ...(await loadClusterData(cluster)),
     }))
   );
+
+  // Separate VPS job/Redis key from per-uid earnings — a consolidated
+  // rate comparison across all five backend pipelines, twice-daily push.
+  const marketRates = await getMarketRates().catch(() => null);
+
   // Computed once, server-side only, and passed down as a prop rather than
   // read via Date.now() inside a Client Component's render — reading the
   // clock directly there hydration-mismatches, since SSR and the client's
@@ -87,7 +90,7 @@ export default async function InternalEarningsPage() {
                 className="text-xs text-[#94a3b8]"
                 title={new Date(lastSyncedAt).toLocaleString()}
               >
-                as of {formatSyncedAgo(lastSyncedAt)}
+                as of {formatRelativeTime(new Date(lastSyncedAt).getTime())}
               </span>
             )}
           </div>
@@ -107,7 +110,11 @@ export default async function InternalEarningsPage() {
           </div>
         )}
 
-        <EarningsDashboard clustersWithData={clustersWithData} renderedAtMs={renderedAtMs} />
+        <EarningsDashboard
+          clustersWithData={clustersWithData}
+          renderedAtMs={renderedAtMs}
+          marketRates={marketRates}
+        />
       </div>
     </div>
   );

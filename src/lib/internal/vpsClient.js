@@ -128,3 +128,11 @@ export async function getDailyEarnings(uid, days = 30) {
 export async function getEarningsSnapshot(uid) {
   return readEarningsPayload(uid);
 }
+
+// Consolidated market-rate comparison, pushed by a separate VPS job (not the
+// per-uid earnings sync) twice daily. Same read-only, push-based pattern —
+// this file never calls any of the five backend rate pipelines directly.
+export async function getMarketRates() {
+  const payload = await getClient().get('market_rates:latest');
+  return payload ?? null;
+}

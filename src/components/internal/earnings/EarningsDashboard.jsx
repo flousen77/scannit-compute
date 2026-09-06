@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import ClusterCard from './ClusterCard';
 import ClusterFormModal from './ClusterFormModal';
 import PortfolioTotalsBar from './PortfolioTotalsBar';
+import MarketRateComparisonPanel from './MarketRateComparisonPanel';
 import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
 import { currentMonthRange, lastMonthRange } from '@/lib/internal/dateRanges';
 
@@ -20,7 +21,7 @@ function buildTotalsRangeQuery(basis) {
   return new URLSearchParams({ window: basis === 'live' ? '24h' : '7d' }).toString();
 }
 
-export default function EarningsDashboard({ clustersWithData, renderedAtMs }) {
+export default function EarningsDashboard({ clustersWithData, renderedAtMs, marketRates }) {
   const router = useRouter();
   const [formTarget, setFormTarget] = useState(null); // null | 'new' | cluster object
   const [convertTarget, setConvertTarget] = useState(null); // null | { cluster, targetMode }
@@ -148,9 +149,7 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs }) {
         totalsLoading={totalsLoading}
       />
 
-      {/* Reserved for the upcoming Market Rate Comparison panel — placed
-          here (below totals, above the cluster list) so its layout won't
-          need to shift once it's built. */}
+      <MarketRateComparisonPanel marketRates={marketRates} />
 
       <div className="flex justify-end mb-4">
         <button
