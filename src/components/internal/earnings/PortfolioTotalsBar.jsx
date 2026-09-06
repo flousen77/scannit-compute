@@ -11,6 +11,20 @@ const usdFmt = new Intl.NumberFormat('en-US', {
 // wouldn't be found.
 const GRID_COLS = { 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4' };
 
+const TOTALS_BASES = [
+  { value: 'live', label: 'Live' },
+  { value: '7d', label: '7D' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+];
+
+const pillGroupClass = 'inline-flex items-center gap-1 bg-black/30 border border-white/10 rounded-full p-1';
+function pillButtonClass(active) {
+  return `px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+    active ? 'bg-white text-brand-dark' : 'text-brand-muted hover:text-white'
+  }`;
+}
+
 function SegmentCard({ label, mrr, profit, margin, accent }) {
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
@@ -42,6 +56,9 @@ export default function PortfolioTotalsBar({
   onFilterChange,
   includeForecast,
   onIncludeForecastChange,
+  totalsBasis,
+  onTotalsBasisChange,
+  totalsLoading,
 }) {
   const {
     totalClusters,
@@ -100,41 +117,56 @@ export default function PortfolioTotalsBar({
 
   return (
     <div className="mb-6">
-      <div className={`grid grid-cols-1 ${GRID_COLS[maxCols]} gap-4`}>
-        {visibleKeys.map((key) => (
-          <SegmentCard key={key} {...segments[key]} accent={isAccent(key)} />
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-        <div className="inline-flex items-center gap-1 bg-black/30 border border-white/10 rounded-full p-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className={pillGroupClass}>
           {filters.map((f) => (
             <button
               key={f.key}
               type="button"
               onClick={() => onFilterChange(f.key)}
-              className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
-                activeFilter === f.key
-                  ? 'bg-white text-brand-dark'
-                  : 'text-brand-muted hover:text-white'
-              }`}
+              className={pillButtonClass(activeFilter === f.key)}
             >
               {f.label} ({counts[f.key]})
             </button>
           ))}
         </div>
 
-        {activeFilter === 'all' && forecastCount > 0 && (
-          <label className="flex items-center gap-2 text-xs text-brand-muted cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={includeForecast}
-              onChange={(e) => onIncludeForecastChange(e.target.checked)}
-              className="rounded border-white/20 bg-black/40"
-            />
-            Include forecast in totals
-          </label>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {activeFilter === 'all' && forecastCount > 0 && (
+            <label className="flex items-center gap-2 text-xs text-brand-muted cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={includeForecast}
+                onChange={(e) => onIncludeForecastChange(e.target.checked)}
+                className="rounded border-white/20 bg-black/40"
+              />
+              Include forecast in totals
+            </label>
+          )}
+
+          <div className={pillGroupClass}>
+            {TOTALS_BASES.map((b) => (
+              <button
+                key={b.value}
+                type="button"
+                onClick={() => onTotalsBasisChange(b.value)}
+                className={pillButtonClass(totalsBasis === b.value)}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`grid grid-cols-1 ${GRID_COLS[maxCols]} gap-4 transition-opacity ${
+          totalsLoading ? 'opacity-50' : ''
+        }`}
+      >
+        {visibleKeys.map((key) => (
+          <SegmentCard key={key} {...segments[key]} accent={isAccent(key)} />
+        ))}
       </div>
 
       {activeFilter === 'all' && (
