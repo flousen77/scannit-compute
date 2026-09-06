@@ -8,7 +8,7 @@ export default function FlywheelSection() {
           <span className="text-xs font-bold text-[#06b6d4] tracking-widest uppercase mb-4 block">Scaling Dynamics</span>
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 tracking-tight">The Compounding Flywheel</h2>
           <p className="text-[#94a3b8] max-w-2xl mx-auto text-lg leading-relaxed">
-            How community allocations and institutional equipment debt compound to rapidly expand the global Scannit hardware fleet.
+            How community participation and institutional equipment debt compound to rapidly expand the global Scannit hardware fleet.
           </p>
         </div>
 
@@ -40,9 +40,9 @@ export default function FlywheelSection() {
               <div className="h-14 w-14 rounded-full flex items-center justify-center text-[#06b6d4] mb-5 border border-[#06b6d4]/40 bg-[#06b6d4]/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
                 <i className="fas fa-server text-xl"></i>
               </div>
-              <h4 className="text-white font-bold text-lg mb-3">Dual-Engine Cash Yield</h4>
+              <h4 className="text-white font-bold text-lg mb-3">Two Routes to Full Utilization</h4>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
-                Instant B2B leases + Subnet Router guarantee <strong className="text-white">100% GPU utilization & cash yield</strong>.
+                Instant B2B leases plus automated spot-network routing keep every GPU running, with <strong className="text-white">no idle window between clients</strong>.
               </p>
             </div>
             

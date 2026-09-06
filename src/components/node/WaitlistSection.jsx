@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-export default function WaitlistSection({ openModal }) {
+export default function WaitlistSection() {
   const [email, setEmail] = useState('');
   const [isNlSubmitted, setIsNlSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,47 +39,54 @@ export default function WaitlistSection({ openModal }) {
   return (
     <section id="waitlist" className="py-24 relative z-10 px-5 scroll-mt-24">
       <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <span className="text-xs font-bold text-[#06b6d4] tracking-widest uppercase mb-4 block">Waitlist Allocation</span>
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 tracking-tight">Phase 1 Institutional Order Book</h2>
+        <div className="text-center mb-12">
+          <span className="text-xs font-bold text-[#06b6d4] tracking-widest uppercase mb-4 block">Coming Later</span>
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 tracking-tight">
+            Network participation is coming.<br />
+            <span className="text-[#06b6d4]">Sign up now to be the first.</span>
+          </h2>
           <p className="text-[#94a3b8] max-w-2xl mx-auto text-lg leading-relaxed">
-            Select your targeted capital allocation. Phase 1 waitlist members receive priority provisioning and discounted protocol fees at launch.
+            We&apos;re building a way to take part in the Scannit compute network. Join the list and we&apos;ll tell you first when it&apos;s ready, no price attached yet.
           </p>
         </div>
 
-        {/* Tier Matrix */}
-        <div className="bg-white/[0.01] border border-white/5 rounded-xl p-2 md:p-6 shadow-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-4xl mx-auto">
           {[
-            { name: 'Starter Share', basis: '$100 Basis', sub: '1 RWA Micro-Share', desc: 'Base dual-yield revenue sharing access.', val: '100' },
-            { name: 'Pro Pod', basis: '$1,000 Basis', sub: 'Priority Queue Status', desc: 'Discounted platform management fees.', val: '1000' },
-            { name: 'Node Runner', basis: '$5,000 Basis', sub: 'Early Batch Access', desc: 'Priority allocation on upcoming hardware drops.', val: '5000' },
-            { name: 'Institutional', basis: '$25,000 Basis', sub: 'Priority Hardware Provisioning', desc: 'Dedicated account manager & early access to B300 arrays.', val: '25000' },
-            { name: 'Dedicated Node', basis: '$100k+ Basis', sub: '100% Isolated Bare-Metal', desc: 'Custom enterprise SLA and isolated topology architecture.', val: '100000' },
-          ].map((tier, idx) => (
-            <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 p-5 md:p-6 border-b border-white/10 last:border-0 hover:bg-white/5 transition-colors rounded-lg">
-              <div className="w-full md:w-1/4">
-                <h4 className="text-white font-bold text-lg">{tier.name}</h4>
-                <div className="text-[#06b6d4] font-mono text-sm mt-1">{tier.basis}</div>
+            {
+              icon: 'fa-user-clock',
+              title: 'Priority Access',
+              body: 'You’ll be first in line when network participation opens.',
+            },
+            {
+              icon: 'fa-satellite-dish',
+              title: 'Fleet Updates',
+              body: 'See new hardware as it’s deployed into the network.',
+            },
+            {
+              icon: 'fa-file-lines',
+              title: 'Clear Terms',
+              body: 'Pricing and structure shared the moment they’re decided.',
+            },
+          ].map((item) => (
+            <div
+              key={item.title}
+              className="group bg-white/[0.02] border border-white/5 hover:border-[#06b6d4]/50 hover:bg-[#06b6d4]/[0.04] hover:shadow-[0_0_25px_rgba(6,182,212,0.15)] rounded-2xl p-8 text-center flex flex-col items-center justify-start transition-all"
+            >
+              <div className="h-14 w-14 rounded-full flex items-center justify-center text-[#06b6d4] mb-5 border border-[#06b6d4]/30 bg-[#06b6d4]/10 group-hover:border-[#06b6d4]/60 group-hover:shadow-[0_0_20px_rgba(6,182,212,0.25)] transition-all">
+                <i className={`fas ${item.icon} text-xl`}></i>
               </div>
-              <div className="w-full md:w-1/2 md:border-l md:border-white/10 md:pl-6 text-sm text-[#94a3b8]">
-                <span className="text-white block mb-1 font-semibold">{tier.sub}</span>
-                {tier.desc}
-              </div>
-              <div className="w-full md:w-1/4 text-left md:text-right mt-2 md:mt-0">
-                <button onClick={() => openModal(tier.val)} className="border border-white/10 hover:border-white text-white px-5 py-2 text-xs rounded-full transition-all w-full md:w-auto">
-                  Select Tier
-                </button>
-              </div>
+              <h4 className="text-white font-bold text-lg mb-3">{item.title}</h4>
+              <p className="text-[#94a3b8] text-sm leading-relaxed">{item.body}</p>
             </div>
           ))}
         </div>
 
         {/* Ecosystem Box */}
-        <div className="mt-12 max-w-2xl mx-auto p-6 md:p-8 rounded-xl border border-white/5 bg-white/[0.02] backdrop-blur-sm text-center">
+        <div className="mt-8 max-w-2xl mx-auto p-6 md:p-8 rounded-xl border border-white/5 bg-white/[0.02] backdrop-blur-sm text-center">
           {!isNlSubmitted ? (
             <div>
               <h4 className="text-white font-bold text-lg mb-2">Track the Network Expansion</h4>
-              <p className="text-[#94a3b8] text-sm mb-6">Join the ecosystem to receive priority alerts for new hardware deployments, network yield reports, and upcoming allocation phases.</p>
+              <p className="text-[#94a3b8] text-sm mb-6">Join the ecosystem to receive updates on new hardware deployments and how the network is growing.</p>
               
               <form onSubmit={handleNlSubmit} className="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto">
                 <input 

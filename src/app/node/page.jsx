@@ -9,39 +9,11 @@ import WaitlistModal from '@/components/node/WaitlistModal';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
-const MOCK_API_DATA = {
-  '30D': { 
-    rtx: { yield: 11520.00, apy: 82.4, util: 100.0, status: 'Operational' }, 
-    b200: { yield: 37440.00, apy: 111.1, util: 100.0, status: 'Operational' }, 
-    b300: { yield: 56160.00, apy: 159.6, util: 100.0, status: 'Operational' } 
-  },
-  '7D': { 
-    rtx: { yield: 2688.00, apy: 83.1, util: 100.0, status: 'Surging' }, 
-    b200: { yield: 8736.00, apy: 110.8, util: 100.0, status: 'Operational' }, 
-    b300: { yield: 13104.00, apy: 159.2, util: 100.0, status: 'Optimal' } 
-  },
-  '24H': { 
-    rtx: { yield: 384.00, apy: 84.5, util: 100.0, status: 'Peak Demand' }, 
-    b200: { yield: 1248.00, apy: 112.4, util: 100.0, status: 'Operational' }, 
-    b300: { yield: 1872.00, apy: 161.0, util: 100.0, status: 'Optimal' } 
-  }
-};
-
 export default function NodePage() {
-  const [timeframe, setTimeframe] = useState('30D');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTier, setSelectedTier] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleTimeframeChange = (period) => {
-    setIsLoading(true);
-    setTimeframe(period);
-    setTimeout(() => setIsLoading(false), 300);
-  };
-
-  const openModal = (tierValue = '') => {
-    setSelectedTier(tierValue);
+  const openModal = () => {
     setIsSubmitted(false);
     setIsModalOpen(true);
   };
@@ -91,7 +63,7 @@ export default function NodePage() {
             <span className="text-white">Own the bare-metal hardware driving them.</span>
           </h1>
           <p className="text-lg md:text-xl text-[#94a3b8] max-w-3xl mx-auto mb-10 leading-relaxed">
-            Access tokenized RWA GPU fractions backed by high-yielding enterprise leases, dynamically buffered across leading spot networks to guarantee 100% continuous hardware utilization.
+            We run bare-metal NVIDIA infrastructure for enterprise AI. We&apos;re opening a way for the community to be part of that network. Join the waitlist to hear when.
           </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
              <a 
@@ -118,25 +90,17 @@ export default function NodePage() {
       </section>
 
       {/* Sections */}
-      <TelemetrySection 
-        timeframe={timeframe} 
-        setTimeframe={handleTimeframeChange} 
-        currentData={MOCK_API_DATA[timeframe]} 
-        isLoading={isLoading} 
-        openModal={openModal} 
-      />
+      <TelemetrySection openModal={openModal} />
       <RevenueArchitecture />
       <FlywheelSection />
-      <WaitlistSection openModal={openModal} />
+      <WaitlistSection />
 
       {/* Shared Waitlist Modal */}
-      <WaitlistModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        selectedTier={selectedTier} 
-        setSelectedTier={setSelectedTier} 
-        isSubmitted={isSubmitted} 
-        setIsSubmitted={setIsSubmitted} 
+      <WaitlistModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        isSubmitted={isSubmitted}
+        setIsSubmitted={setIsSubmitted}
       />
     </div>
 
