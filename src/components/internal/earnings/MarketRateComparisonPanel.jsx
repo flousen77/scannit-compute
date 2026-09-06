@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { formatRelativeTime } from '@/lib/internal/dateRanges';
 
 // gpu_type strings arriving from Redis are already canonicalized upstream
@@ -10,11 +11,11 @@ import { formatRelativeTime } from '@/lib/internal/dateRanges';
 // Display label differs in word order from the real data's "RTX PRO 6000"
 // prefix ("RTX 6000 Pro") deliberately — that's the requested tab label.
 const GPU_TABS = [
-  { prefix: 'RTX PRO 6000', label: 'RTX 6000 Pro' },
-  { prefix: 'H100', label: 'H100' },
-  { prefix: 'H200', label: 'H200' },
-  { prefix: 'B200', label: 'B200' },
   { prefix: 'B300', label: 'B300' },
+  { prefix: 'B200', label: 'B200' },
+  { prefix: 'RTX PRO 6000', label: 'RTX 6000 Pro' },
+  { prefix: 'H200', label: 'H200' },
+  { prefix: 'H100', label: 'H100' },
 ];
 
 const SOURCE_LABELS = {
@@ -40,6 +41,62 @@ const CONFIDENCE_BADGE_CLASS = {
 };
 const DEFAULT_CONFIDENCE_CLASS = 'text-brand-muted border-white/10 bg-white/[0.03]';
 
+// PLACEHOLDER wording pending consolidate/LEARNINGS.md, which doesn't exist
+// on this machine — these are the exact per-source rules given when this
+// tooltip was requested, not verified against the actual consolidation-job
+// source, and with the literal "N" dropped since no per-row basis field
+// exists in the real payload to fill it with (checked: rows are only
+// {gpu_type, source, current_rate_per_hr, avg_7d_rate_per_hr,
+// confidence_tier, last_synced}). Targon uses a different tier vocabulary
+// (only OK/DERIVED_ESTIMATE — confirmed live, it has no other tiers) than
+// the others, so it's deliberately left unmapped here rather than guessed —
+// both of its tiers have real, known explanations instead, in
+// CONFIDENCE_BASIS_BY_TIER and CONFIDENCE_BASIS_BY_SOURCE_TIER below.
+const CONFIDENCE_BASIS_BY_SOURCE = {
+  chutes: 'Chutes: based on qualifying miners observed for this GPU type.',
+  lium: 'Lium: based on GPUs listed for this GPU type.',
+  vast: 'Vast.ai: based on offers observed for this GPU type.',
+  runpod_secure: 'RunPod: platform-reported availability tier.',
+  runpod_community: 'RunPod: platform-reported availability tier.',
+};
+
+// Tier-specific explanations that hold regardless of source, checked before
+// the per-source rules above — DERIVED_ESTIMATE's meaning is fixed and known
+// (unlike a source's generic sampling rule), so it should never fall through
+// to the "not yet documented" default. Confirmed via a live query of
+// market_rates:latest that DERIVED_ESTIMATE is exclusively produced by
+// Targon, so a tier-only key is safe here.
+const CONFIDENCE_BASIS_BY_TIER = {
+  DERIVED_ESTIMATE:
+    "Targon has no live miners for this GPU type — rate is extrapolated from Targon's own published max_price using the calibrated Kraken/Targon price-correction ratio, not observed from an actual miner.",
+};
+
+// Source+tier-scoped explanations, for tiers whose meaning genuinely differs
+// by source — checked before the tier-only and source-only maps above.
+// OK can't go in CONFIDENCE_BASIS_BY_TIER: confirmed live that Chutes also
+// produces OK-tier rows, and Chutes' "OK" (sufficient qualifying miners)
+// isn't the same claim as Targon's (on-chain-verified rate), so keying by
+// tier alone would incorrectly apply Targon's wording to Chutes' rows too.
+const CONFIDENCE_BASIS_BY_SOURCE_TIER = {
+  'targon:OK':
+    "Real chain-verified rate (on-chain emission × live TAO price), calibrated against our own cluster's realized Kraken earnings.",
+};
+
+const DEFAULT_CONFIDENCE_BASIS =
+  'Basis not yet documented for this source — check consolidate/LEARNINGS.md once available.';
+
+function confidenceTooltip(row) {
+  // Checked first in case the backend ever adds a per-row basis field —
+  // none exists in the payload today, so this always falls through.
+  if (row.confidence_basis) return row.confidence_basis;
+  return (
+    CONFIDENCE_BASIS_BY_SOURCE_TIER[`${row.source}:${row.confidence_tier}`] ??
+    CONFIDENCE_BASIS_BY_TIER[row.confidence_tier] ??
+    CONFIDENCE_BASIS_BY_SOURCE[row.source] ??
+    DEFAULT_CONFIDENCE_BASIS
+  );
+}
+
 const usdFmt = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -55,13 +112,115 @@ function variantSuffix(gpuType, prefix) {
   return gpuType.slice(prefix.length).trim() || null;
 }
 
+// Provisional — flagged for a later decision once discussed internally.
+// Chutes/Targon's data can't distinguish RTX 6000 Pro sub-variants at all;
+// this only makes that uncertainty visible, it doesn't change which rows
+// are shown or how they're computed.
+const RTX6000_UNSPECIFIED_LABEL =
+  "(assumed Max-Q — Chutes/Targon's onboarding requirements suggest Max-Q, but their data can't actually distinguish sub-variants)";
+
+function variantHeading(gpuType, prefix) {
+  const suffix = variantSuffix(gpuType, prefix);
+  if (prefix === 'RTX PRO 6000' && suffix === '(unspecified variant)') {
+    return RTX6000_UNSPECIFIED_LABEL;
+  }
+  return suffix ?? gpuType;
+}
+
+// Shared by the scorecard (across every variant in a tab) and each expanded
+// table (within one variant group) — same rule either way: highest
+// current_rate_per_hr, skipping rows with no usable rate.
+function findTopPayer(rows) {
+  const rated = rows.filter((r) => r.current_rate_per_hr != null);
+  if (rated.length === 0) return null;
+  return rated.reduce((best, r) => (r.current_rate_per_hr > best.current_rate_per_hr ? r : best));
+}
+
+function ScoreCard({ rows }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      {GPU_TABS.map((tab) => {
+        const tabRows = rows.filter((r) => r.gpu_type.startsWith(tab.prefix));
+        const top = findTopPayer(tabRows);
+        return (
+          <div key={tab.prefix} className="bg-black/30 border border-white/10 rounded-xl px-4 py-3">
+            <div className="text-[10px] uppercase tracking-wide text-brand-muted mb-1">{tab.label}</div>
+            {top ? (
+              <>
+                <div className="text-xs text-white truncate">{SOURCE_LABELS[top.source] ?? top.source}</div>
+                <div className="font-mono text-lg text-brand-cyan">
+                  {usdFmt.format(top.current_rate_per_hr)}
+                  <span className="text-xs text-brand-muted">/hr</span>
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-brand-muted">—</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Native `title` attributes have an inconsistent/long OS hover delay, can't
+// be styled, and (relevant here) don't reliably render at all in some
+// environments — replaced with a real hover/focus-triggered tooltip.
+// Rendered via a portal into document.body with `position: fixed` coords
+// from getBoundingClientRect(), rather than CSS-relative positioning, so it
+// can't get clipped by the table's `overflow-x-auto` wrapper.
+function ConfidenceBadge({ row }) {
+  const [coords, setCoords] = useState(null);
+  const ref = useRef(null);
+
+  const show = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) setCoords({ top: rect.top, left: rect.left + rect.width / 2 });
+  };
+  const hide = () => setCoords(null);
+
+  return (
+    <span className="relative inline-block">
+      <span
+        ref={ref}
+        tabIndex={0}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap cursor-help outline-none focus-visible:ring-1 focus-visible:ring-brand-cyan ${
+          CONFIDENCE_BADGE_CLASS[row.confidence_tier] ?? DEFAULT_CONFIDENCE_CLASS
+        }`}
+      >
+        {row.confidence_tier}
+      </span>
+      {coords &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            role="tooltip"
+            style={{
+              position: 'fixed',
+              top: coords.top - 8,
+              left: coords.left,
+              transform: 'translate(-50%, -100%)',
+            }}
+            className="z-50 w-max max-w-[240px] px-3 py-2 rounded-lg bg-brand-dark border border-white/15 text-xs leading-snug text-white shadow-xl pointer-events-none"
+          >
+            {confidenceTooltip(row)}
+          </div>,
+          document.body
+        )}
+    </span>
+  );
+}
+
 function VariantTable({ rows }) {
   // A null current_rate_per_hr shows as "—" the same as a source/GPU-type
   // combo that has no row at all — the payload isn't fully consistent about
   // which of those two it uses for "no usable data", so both render
   // identically rather than one looking more "real" than the other.
-  const ratedRows = rows.filter((r) => r.current_rate_per_hr != null);
-  const maxRate = ratedRows.length ? Math.max(...ratedRows.map((r) => r.current_rate_per_hr)) : null;
+  const topPayer = findTopPayer(rows);
 
   return (
     <div className="overflow-x-auto">
@@ -77,7 +236,7 @@ function VariantTable({ rows }) {
         </thead>
         <tbody>
           {rows.map((row) => {
-            const isTopPayer = row.current_rate_per_hr != null && row.current_rate_per_hr === maxRate;
+            const isTopPayer = topPayer != null && row === topPayer;
             const mrr = row.current_rate_per_hr != null ? row.current_rate_per_hr * 24 * 30 * 8 : null;
             const rateClass = isTopPayer ? 'text-brand-cyan font-semibold' : 'text-white';
             return (
@@ -92,13 +251,7 @@ function VariantTable({ rows }) {
                   {row.avg_7d_rate_per_hr != null ? usdFmt.format(row.avg_7d_rate_per_hr) : '—'}
                 </td>
                 <td className="py-2 pr-4">
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                      CONFIDENCE_BADGE_CLASS[row.confidence_tier] ?? DEFAULT_CONFIDENCE_CLASS
-                    }`}
-                  >
-                    {row.confidence_tier}
-                  </span>
+                  <ConfidenceBadge row={row} />
                 </td>
                 <td className="py-2 font-mono text-white">{mrr != null ? usdFmt0.format(mrr) : '—'}</td>
               </tr>
@@ -134,60 +287,66 @@ export default function MarketRateComparisonPanel({ marketRates }) {
   }
 
   return (
-    <div className="mb-6 bg-brand-panel border border-white/10 rounded-2xl overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-6 py-4 text-left"
-      >
-        <span className="text-sm font-semibold text-white">
-          Market Rate Comparison {expanded ? '▾' : '▸'}
-        </span>
-      </button>
+    <div className="mb-6">
+      <div className="bg-brand-panel border border-white/10 rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="w-full flex items-center justify-between px-6 py-4 text-left"
+        >
+          <span className="text-sm font-semibold text-white">
+            Market Rate Comparison {expanded ? '▾' : '▸'}
+          </span>
+        </button>
 
-      {expanded && (
-        <div className="px-6 pb-6 border-t border-white/10 pt-4">
-          {marketRates?.generated_at && (
-            <div className="text-xs text-brand-muted mb-4">
-              Rates as of {formatRelativeTime(new Date(`${marketRates.generated_at.replace(' ', 'T')}Z`).getTime())}
-            </div>
-          )}
-
-          {tabsWithData.length === 0 ? (
-            <div className="text-sm text-brand-muted">No market rate data available.</div>
-          ) : (
-            <>
-              <div className="inline-flex items-center gap-1 bg-black/30 border border-white/10 rounded-full p-1 mb-4">
-                {tabsWithData.map((tab) => (
-                  <button
-                    key={tab.prefix}
-                    type="button"
-                    onClick={() => setActiveTabPrefix(tab.prefix)}
-                    className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
-                      activeTab?.prefix === tab.prefix
-                        ? 'bg-white text-brand-dark'
-                        : 'text-brand-muted hover:text-white'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {variantGroups.map(([gpuType, groupRows]) => (
-                <div key={gpuType} className="mb-6 last:mb-0">
-                  {variantGroups.length > 1 && (
-                    <div className="text-xs uppercase tracking-wide text-brand-muted mb-2">
-                      {variantSuffix(gpuType, activeTab.prefix) ?? gpuType}
-                    </div>
-                  )}
-                  <VariantTable rows={groupRows} />
-                </div>
-              ))}
-            </>
-          )}
+        <div className="px-6 pb-4 border-t border-white/10 pt-4">
+          <ScoreCard rows={rows} />
         </div>
-      )}
+
+        {expanded && (
+          <div className="px-6 pb-6 border-t border-white/10 pt-4">
+            {marketRates?.generated_at && (
+              <div className="text-xs text-brand-muted mb-4">
+                Rates as of {formatRelativeTime(new Date(`${marketRates.generated_at.replace(' ', 'T')}Z`).getTime())}
+              </div>
+            )}
+
+            {tabsWithData.length === 0 ? (
+              <div className="text-sm text-brand-muted">No market rate data available.</div>
+            ) : (
+              <>
+                <div className="inline-flex items-center gap-1 bg-black/30 border border-white/10 rounded-full p-1 mb-4">
+                  {tabsWithData.map((tab) => (
+                    <button
+                      key={tab.prefix}
+                      type="button"
+                      onClick={() => setActiveTabPrefix(tab.prefix)}
+                      className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                        activeTab?.prefix === tab.prefix
+                          ? 'bg-white text-brand-dark'
+                          : 'text-brand-muted hover:text-white'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {variantGroups.map(([gpuType, groupRows]) => (
+                  <div key={gpuType} className="mb-6 last:mb-0">
+                    {variantGroups.length > 1 && (
+                      <div className="text-xs uppercase tracking-wide text-brand-muted mb-2">
+                        {variantHeading(gpuType, activeTab.prefix)}
+                      </div>
+                    )}
+                    <VariantTable rows={groupRows} />
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
