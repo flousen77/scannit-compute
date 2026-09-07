@@ -17,7 +17,7 @@ export default function RevenueArchitecture() {
           <span className="text-xs font-bold text-[#06b6d4] tracking-widest uppercase mb-4 block">Revenue Architecture</span>
           <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6 tracking-tight">The Continuous Revenue Stack</h2>
           <p className="text-slate-600 max-w-2xl mx-auto text-lg leading-relaxed">
-            Two synchronized revenue streams ensuring maximum baseline earnings without a single minute of unleased downtime.
+            Two revenue streams, so a GPU that comes off an enterprise lease has somewhere to go.
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export default function RevenueArchitecture() {
             <div className="absolute bg-slate-900 border border-slate-800 rounded-xl flex flex-col items-center justify-center p-4 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: '90%', top: '50%', width: '180px', boxShadow: '0 15px 35px rgba(0,0,0,0.15)' }}>
               <img src="https://imagedelivery.net/Ulul0QO-cXqPUi6uJcNN5g/a3924725-4e64-4885-0779-1aae85136500/public" alt="Scannit Logo" className="h-6 w-auto mb-3 opacity-90 mx-auto" style={{ maxWidth: '120px' }} />
               <div className="text-white font-bold text-sm tracking-wide leading-tight">Scannit Revenue<br />Engine</div>
-              <div className="text-cyan-400 font-mono text-[0.65rem] mt-3 bg-[#06b6d4]/15 px-2 py-1 rounded">100% UTILIZATION</div>
+              <div className="text-cyan-400 font-mono text-[0.65rem] mt-3 bg-[#06b6d4]/15 px-2 py-1 rounded">BUILT TO STAY LEASED</div>
             </div>
           </div>
         </div>
@@ -150,12 +150,12 @@ export default function RevenueArchitecture() {
           <div className="relative pl-12">
             <div className="absolute top-0 left-0 h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center font-bold text-[#06b6d4] text-sm border border-cyan-100 shadow-sm">2</div>
             <h3 className="font-bold text-slate-900 text-lg mb-3">Instant Routing Engine</h3>
-            <p className="text-slate-600 text-[0.95rem] leading-relaxed">The exact millisecond an enterprise client finishes an execution job, our custom router detects idle status and redirects the hardware automatically.</p>
+            <p className="text-slate-600 text-[0.95rem] leading-relaxed">As soon as an enterprise client finishes a job, our router detects idle status and redirects the hardware.</p>
           </div>
           <div className="relative pl-12">
             <div className="absolute top-0 left-0 h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center font-bold text-slate-400 text-sm border border-slate-200 shadow-sm">3</div>
             <h3 className="font-bold text-slate-900 text-lg mb-3">Multi-Network Buffer</h3>
-            <p className="text-slate-600 text-[0.95rem] leading-relaxed">Unleased GPU cycles automatically stream to Vast.ai, RunPod, Render, Targon, and other leading spot networks, ensuring 0% idle downtime.</p>
+            <p className="text-slate-600 text-[0.95rem] leading-relaxed">Idle cycles route out to Vast.ai, RunPod, Bittensor and other spot networks without a human touching anything.</p>
           </div>
         </div>
       </div>

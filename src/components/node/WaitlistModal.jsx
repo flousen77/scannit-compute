@@ -2,54 +2,32 @@
 
 import { useState } from 'react';
 
-const MAKE_WAITLIST_WEBHOOK = 'https://hook.us2.make.com/78lh6v46ncg8qq790k5hg9fphyfjnz2v';
-
 export default function WaitlistModal({ isOpen, onClose, isSubmitted, setIsSubmitted }) {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
-
-  // Hilfsfunktion: Ermittelt das Land des Nutzers anhand der IP
-  const getUserCountry = async () => {
-    try {
-      const res = await fetch('https://ipapi.co/json/');
-      if (!res.ok) return 'Unknown';
-      const data = await res.json();
-      return data.country_name || 'Unknown';
-    } catch (err) {
-      return 'Unknown';
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError('');
 
     try {
-      // Land im Hintergrund ermitteln
-      const country = await getUserCountry();
-
-      // Webhook Aufruf analog zum Footer mit no-cors
-      await fetch(MAKE_WAITLIST_WEBHOOK, {
+      const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          country,
-          timestamp: new Date().toISOString(),
-          source: 'Node Program Waitlist Modal'
-        }),
-        mode: 'no-cors'
+        body: JSON.stringify({ email, list: 'waitlist' }),
       });
+
+      if (!res.ok) throw new Error(String(res.status));
 
       setIsSubmitted(true);
       setEmail('');
-    } catch (error) {
-      console.error('Waitlist Submission Error:', error);
-      // Fallback
-      setIsSubmitted(true);
-      setEmail('');
+    } catch (err) {
+      console.error('Waitlist Submission Error:', err);
+      setError('Something went wrong. Please try again, or email us at hello@scannit.io.');
     } finally {
       setIsSubmitting(false);
     }
@@ -74,10 +52,21 @@ export default function WaitlistModal({ isOpen, onClose, isSubmitted, setIsSubmi
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@email.com" 
-                  className="w-full p-3 bg-white/[0.03] border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#06b6d4]" 
+                  className="w-full p-3 bg-white/[0.03] border border-white/10 rounded-lg text-white focus:outline-none focus:border-[#06b6d4]"
                 />
+                <p className="text-xs text-slate-500 mt-2">
+                  We&apos;ll only use this to email you about the network.{' '}
+                  <a href="/privacy" className="text-[#06b6d4] hover:underline">Privacy Policy</a>
+                </p>
               </div>
-              
+
+              <p className="text-sm text-[#94a3b8] mb-4">
+                We&apos;ll email you when network participation opens. There&apos;s nothing to buy
+                today and no price has been set.
+              </p>
+
+              {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
+
               <button
                 type="submit"
                 disabled={isSubmitting}

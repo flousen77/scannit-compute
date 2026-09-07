@@ -5,28 +5,27 @@ export default function Footer({ openModal }) {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-const handleSubscribe = async (e) => {
+  const handleSubscribe = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
 
     try {
-      await fetch("https://hook.us2.make.com/sn25eizf4hwwnm4mckq6fnl1sn0aya81", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, timestamp: new Date().toISOString() }),
-        mode: 'no-cors' // This line forces the browser to bypass security blocks
+      const res = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, list: 'newsletter' }),
       });
 
-      // With no-cors, the browser hides the response status, 
-      // so we will just assume success and show the message!
+      if (!res.ok) throw new Error(String(res.status));
+
       setSubscribed(true);
       setEmail('');
     } catch (err) {
-      console.error("Subscription error:", err);
-      // Fallback in case of a hard network error
-      setSubscribed(true); 
-      setEmail('');
+      console.error('Subscription error:', err);
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -69,6 +68,11 @@ const handleSubscribe = async (e) => {
                   <button type="submit" className="btn btn-primary" disabled={loading} style={{ padding: '8px 16px', fontSize: '0.9rem', justifyContent: 'center' }}>
                     {loading ? 'Sending...' : 'Subscribe'}
                   </button>
+                  {error && <p style={{ color: '#f87171', fontSize: '0.8rem', margin: 0 }}>{error}</p>}
+                  <p style={{ color: '#64748b', fontSize: '0.75rem', margin: 0, lineHeight: 1.5 }}>
+                    Only used to email you about the network.{' '}
+                    <a href="/privacy" className="footer-link">Privacy Policy</a>
+                  </p>
                 </form>
               ) : (
                 <p style={{ color: '#06b6d4', fontWeight: 600, fontSize: '0.9rem', margin: 0 }}>✓ Subscribed!</p>

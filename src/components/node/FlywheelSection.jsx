@@ -32,7 +32,7 @@ export default function FlywheelSection() {
               </div>
               <h4 className="text-white font-bold text-lg mb-3">Institutional Acquisition</h4>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
-                Secure enterprise clusters via initial capital, <strong className="text-white">leveraging direct OEM distributor pricing</strong> and <strong className="text-[#06b6d4]">preferred hardware allocations</strong>.
+                Secure enterprise clusters via initial capital, buying through <strong className="text-white">distributors rather than resellers</strong>.
               </p>
             </div>
 
@@ -42,7 +42,7 @@ export default function FlywheelSection() {
               </div>
               <h4 className="text-white font-bold text-lg mb-3">Two Routes to Full Utilization</h4>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
-                Instant B2B leases plus automated spot-network routing keep every GPU running, with <strong className="text-white">no idle window between clients</strong>.
+                Instant B2B leases plus automated spot-network routing keep GPUs working, with <strong className="text-white">short idle windows between clients, not weeks</strong>.
               </p>
             </div>
             
@@ -62,7 +62,7 @@ export default function FlywheelSection() {
               </div>
               <h4 className="text-white font-bold text-lg mb-3">Institutional Debt Leverage</h4>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
-                Use <strong className="text-white">debt-free GPU collateral</strong> + proven revenue to lock 75%+ non-dilutive credit, unlocking up to a <strong className="text-[#06b6d4]">1:4 capital leverage ratio</strong>.
+                We aim to use <strong className="text-white">owned, debt-free GPUs</strong> as collateral for equipment credit. Terms are not agreed yet, and the numbers we model internally are targets rather than commitments.
               </p>
             </div>
           </div>

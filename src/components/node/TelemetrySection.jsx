@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const CARD_ICONS = {
   'RTX PRO 6000': 'fa-microchip',
@@ -12,27 +12,28 @@ const CARD_ICONS = {
 
 const usd = (value) => `$${value.toFixed(2)}`;
 
-// Sources can agree exactly (or a GPU can have a single observed source), in
-// which case a "$x – $x" range would just read as a formatting bug.
-function formatRange(range) {
+// Cards publish the top of each family, not a blend. A single reading has no
+// "highest" to speak of, so it is labelled for what it is rather than dressed
+// up as the winner of a comparison that never happened.
+function headlineFor(gpu, basis) {
+  const range = gpu[basis];
   if (!range) return null;
-  return range.low === range.high ? usd(range.low) : `${usd(range.low)} – ${usd(range.high)}`;
+  const single = gpu.observations === 1;
+
+  return {
+    label: single ? 'Observed Rate' : 'Highest Observed Rate',
+    value: usd(range.high),
+    basis: single
+      ? 'Single observed rate'
+      : `Highest of ${gpu.observations} rates observed`,
+  };
 }
 
-export default function TelemetrySection({ openModal }) {
+export default function TelemetrySection({ openModal, rates, failed }) {
   const [basis, setBasis] = useState('current');
-  const [data, setData] = useState(null);
-  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/market-rates')
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then(setData)
-      .catch(() => setFailed(true));
-  }, []);
-
-  const gpus = data?.gpus ?? [];
-  const isLoading = !data && !failed;
+  const gpus = rates?.gpus ?? [];
+  const isLoading = !rates && !failed;
 
   return (
     <section id="telemetry" className="py-12 relative z-10 px-5">
@@ -70,8 +71,8 @@ export default function TelemetrySection({ openModal }) {
             <span className="text-[#06b6d4]">See what compute like ours rents for.</span>
           </h2>
           <p className="text-[#94a3b8] max-w-2xl mx-auto text-base leading-relaxed">
-            Workloads route across Chutes, Targon, Lium, Vast.ai and RunPod toward the best
-            available rate at the time they run.
+            Workloads route across Bittensor, Vast.ai and RunPod toward the best available rate
+            at the time they run.
           </p>
         </div>
 
@@ -111,7 +112,9 @@ export default function TelemetrySection({ openModal }) {
                     className="basis-full md:basis-[calc(50%-0.75rem)] lg:basis-[calc(33.333%-1rem)] bg-white/[0.02] border border-white/5 rounded-2xl p-8 h-[260px] animate-pulse"
                   />
                 ))
-              : gpus.map((gpu) => (
+              : gpus.map((gpu) => {
+                  const headline = headlineFor(gpu, basis);
+                  return (
                   <div
                     key={gpu.key}
                     className="basis-full md:basis-[calc(50%-0.75rem)] lg:basis-[calc(33.333%-1rem)] bg-white/[0.02] border border-white/5 hover:border-[#06b6d4]/50 hover:bg-[#06b6d4]/[0.04] hover:shadow-[0_0_25px_rgba(6,182,212,0.15)] rounded-2xl p-8 transition-all"
@@ -122,14 +125,15 @@ export default function TelemetrySection({ openModal }) {
                     </div>
 
                     <div className="text-[0.75rem] text-[#64748b] uppercase tracking-wider font-semibold">
-                      Observed Market Rate
+                      {headline?.label ?? 'Observed Rate'}
                     </div>
                     <div className="text-3xl font-extrabold text-white tracking-tight my-2">
-                      {formatRange(gpu[basis]) ?? '—'}
+                      {headline?.value ?? '—'}
                       <span className="text-base font-semibold text-slate-500 ml-1">/hr</span>
                     </div>
                     <div className="text-xs text-slate-500 mb-8 font-mono">
-                      {basis === 'current' ? 'Latest sync' : '7-day average'}
+                      {headline?.basis}
+                      {basis === 'avg_7d' ? ', 7-day average' : ''}
                     </div>
 
                     <div className="space-y-4 text-xs font-mono">
@@ -145,14 +149,16 @@ export default function TelemetrySection({ openModal }) {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
           </div>
         )}
 
         <p className="mt-8 text-xs text-slate-500 leading-relaxed max-w-3xl mx-auto text-center">
-          Observed listing rates for comparable hardware on third-party GPU marketplaces, not
-          Scannit earnings. Sample depth varies by platform and not every platform lists every
-          GPU. Updated twice daily. Not a projection of returns.
+          Each figure is the highest rate observed for that hardware on third-party GPU
+          marketplaces, not a typical rate and not Scannit earnings. Rates across platforms vary
+          widely, sample depth differs by platform, and not every platform lists every GPU.
+          Updated twice daily. Not a projection of returns.
         </p>
 
           <div className="mt-16 text-center relative z-10">
@@ -168,7 +174,7 @@ export default function TelemetrySection({ openModal }) {
         <div className="mt-24 mb-8 text-center flex flex-col items-center relative z-10 px-5">
           <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-4">The Structural Flaw in Cloud Infrastructure</h3>
           <p className="text-[#94a3b8] text-sm md:text-base max-w-3xl mx-auto mb-2 leading-relaxed">
-            Traditional cloud providers demand 1-to-3 year commitments with heavy upfront deposits, sacrificing high hourly margins for security and suffering weeks of unmonetized idle downtime between client handoffs. Scannit targets high-margin short-term leases and eliminates transition loss with automated spot-market buffering.
+            Traditional cloud providers demand 1-to-3 year commitments with heavy upfront deposits, sacrificing high hourly margins for security and suffering weeks of unmonetized idle downtime between client handoffs. Scannit targets high-margin short-term leases and shortens the gap between them with automated spot-market buffering.
           </p>
           
           {/* Bezier Routing Schematic */}
@@ -244,14 +250,14 @@ export default function TelemetrySection({ openModal }) {
             <h3 className="text-2xl font-bold text-white mb-6">Scannit Neocloud Engine</h3>
             <ul className="space-y-5 text-sm md:text-base text-gray-300">
               {[
-                "High-margin short-duration B2B leases commanding maximum hourly rates.",
-                "0 transition loss via instant automated spot network routing.",
-                "Dynamic execution routing across Vast.ai, RunPod, Render, Targon, and others.",
-                "100% bare-metal performance with zero virtualization overhead."
-              ].map((text, i) => (
-                <li key={i} className="flex items-start gap-4">
+                'Short-duration B2B leases aimed at the strongest hourly rates.',
+                'A GPU coming off a lease doesn’t wait for the next sales call.',
+                'Dynamic execution routing across Vast.ai, RunPod, Bittensor and others.',
+                'Bare-metal performance, with no virtualization layer in between.',
+              ].map((text) => (
+                <li key={text} className="flex items-start gap-4">
                   <svg width="18" height="18" className="mt-1 flex-shrink-0 text-[#06b6d4]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5"></path></svg>
-                  <span dangerouslySetInnerHTML={{ __html: text.replace('0 transition loss', '<strong>0 transition loss</strong>') }} />
+                  <span>{text}</span>
                 </li>
               ))}
             </ul>

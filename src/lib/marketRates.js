@@ -12,17 +12,18 @@ const GPU_FAMILIES = [
 ];
 
 const SOURCE_LABELS = {
-  chutes: 'Chutes',
-  targon: 'Targon',
-  lium: 'Lium',
+  bittensor: 'Bittensor',
   vast: 'Vast.ai',
   runpod: 'RunPod',
 };
 
-// RunPod reports two availability tiers as separate rows; collapsing them to
-// one provider keeps a single provider from carrying double weight in the
-// median below.
+// Chutes, Targon and Lium are all Bittensor subnets, surfaced publicly as the
+// network rather than named individually. RunPod reports two availability
+// tiers as separate rows and collapses to one name too.
+const BITTENSOR_SUBNETS = new Set(['chutes', 'targon', 'lium']);
+
 function providerOf(source) {
+  if (BITTENSOR_SUBNETS.has(source)) return 'bittensor';
   return source.startsWith('runpod') ? 'runpod' : source;
 }
 
@@ -45,9 +46,12 @@ function rangeOf(values) {
   return { low: Math.min(...usable), high: Math.max(...usable) };
 }
 
-// A range rather than a single blended figure: sources disagree by up to ~2x
-// on the same hardware (Chutes vs Targon on RTX 6000 Pro), and averaging that
-// spread away would publish a precision the underlying data doesn't have.
+// The page publishes the top of each family rather than a blend, so it also
+// publishes `observations`: the count of rows behind that figure. Picking the
+// maximum out of a spread that runs up to 2x wide is only honest if the page
+// says a selection happened, and how thin the set was. Note this counts rows,
+// not provider labels, because three Bittensor subnets reporting separately
+// are three independent readings under one name.
 function summarizeFamily(rows) {
   const providers = new Set(rows.map((r) => providerOf(r.source)));
 
@@ -55,6 +59,7 @@ function summarizeFamily(rows) {
     current: rangeOf(rows.map((r) => r.current_rate_per_hr)),
     avg_7d: rangeOf(rows.map((r) => r.avg_7d_rate_per_hr)),
     sources: [...providers].map((p) => SOURCE_LABELS[p] ?? p).sort(),
+    observations: rows.length,
   };
 }
 

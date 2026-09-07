@@ -6,31 +6,27 @@ export default function WaitlistSection() {
   const [email, setEmail] = useState('');
   const [isNlSubmitted, setIsNlSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleNlSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError('');
 
     try {
-      // Exakt dieselbe Webhook-URL und 'no-cors' Konfiguration wie in der Footer.jsx
-      await fetch("https://hook.us2.make.com/sn25eizf4hwwnm4mckq6fnl1sn0aya81", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          email, 
-          timestamp: new Date().toISOString(),
-          source: 'Node Page Newsletter'
-        }),
-        mode: 'no-cors'
+      const res = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, list: 'newsletter' }),
       });
+
+      if (!res.ok) throw new Error(String(res.status));
 
       setIsNlSubmitted(true);
       setEmail('');
     } catch (err) {
-      console.error("Subscription error:", err);
-      // Fallback wie im Footer: Bei Netzwerk-Triggern Erfolgsstatus anzeigen
-      setIsNlSubmitted(true);
-      setEmail('');
+      console.error('Subscription error:', err);
+      setError('Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -105,12 +101,17 @@ export default function WaitlistSection() {
                   {isSubmitting ? 'Joining...' : 'Join Ecosystem'}
                 </button>
               </form>
+              {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
+              <p className="text-xs text-slate-500 mt-3">
+                We&apos;ll only use this to email you about the network.{' '}
+                <a href="/privacy" className="text-[#06b6d4] hover:underline">Privacy Policy</a>
+              </p>
             </div>
           ) : (
             <div className="py-4">
               <i className="fas fa-check-circle text-3xl text-[#06b6d4] mb-3"></i>
               <h4 className="text-white font-bold text-lg mb-1">Welcome to the Ecosystem</h4>
-              <p className="text-[#94a3b8] text-sm">You are officially on the list. We'll notify you of upcoming deployments.</p>
+              <p className="text-[#94a3b8] text-sm">You&apos;re subscribed. We&apos;ll email you about new hardware deployments.</p>
             </div>
           )}
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import TelemetrySection from '@/components/node/TelemetrySection';
 import RevenueArchitecture from '@/components/node/RevenueArchitecture';
 import FlywheelSection from '@/components/node/FlywheelSection';
@@ -12,6 +12,22 @@ import Footer from '@/components/Footer';
 export default function NodePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [rates, setRates] = useState(null);
+  const [ratesFailed, setRatesFailed] = useState(false);
+
+  // Fetched here rather than inside TelemetrySection so the hero figure and
+  // the cards come from one request and can never disagree with each other.
+  useEffect(() => {
+    fetch('/api/market-rates')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then(setRates)
+      .catch(() => setRatesFailed(true));
+  }, []);
+
+  const topGpu = rates?.gpus?.reduce(
+    (best, gpu) => ((gpu.current?.high ?? 0) > (best?.current?.high ?? 0) ? gpu : best),
+    null
+  );
 
   const openModal = () => {
     setIsSubmitted(false);
@@ -59,11 +75,46 @@ export default function NodePage() {
       <section className="pt-24 md:pt-32 pb-4 relative text-center px-5">
         <div className="max-w-4xl mx-auto relative z-10">
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
-            <span className="text-[#06b6d4] drop-shadow-[0_0_15px_rgba(6,182,212,0.3)]">Stop buying AI stocks.</span><br />
-            <span className="text-white">Own the bare-metal hardware driving them.</span>
+            <span className="text-white">The AI boom has a</span><br />
+            <span className="text-[#06b6d4] drop-shadow-[0_0_15px_rgba(6,182,212,0.3)]">price per hour.</span>
           </h1>
-          <p className="text-lg md:text-xl text-[#94a3b8] max-w-3xl mx-auto mb-10 leading-relaxed">
-            We run bare-metal NVIDIA infrastructure for enterprise AI. We&apos;re opening a way for the community to be part of that network. Join the waitlist to hear when.
+          {topGpu ? (
+            <div className="mb-8">
+            <div className="inline-flex items-center gap-5 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-4 text-left">
+              <div>
+                <div className="text-[0.65rem] font-mono uppercase tracking-widest text-slate-500 mb-1">
+                  Top marketplace rate
+                </div>
+                <div className="text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-none">
+                  ${topGpu.current.high.toFixed(2)}
+                  <span className="text-base font-semibold text-slate-500 ml-1">/hr</span>
+                </div>
+              </div>
+              <div className="border-l border-white/10 pl-5">
+                <div className="text-[0.65rem] font-mono uppercase tracking-widest text-slate-500 mb-1">
+                  Hardware
+                </div>
+                <div className="text-sm md:text-base font-semibold text-[#06b6d4]">
+                  {topGpu.label}
+                </div>
+              </div>
+              {rates?.generated_at ? (
+                <div className="border-l border-white/10 pl-5 hidden sm:block">
+                  <div className="text-[0.65rem] font-mono uppercase tracking-widest text-slate-500 mb-1">
+                    Synced
+                  </div>
+                  <div className="text-sm md:text-base font-mono text-[#94a3b8]">
+                    {rates.generated_at.slice(11, 16)} UTC
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            </div>
+          ) : null}
+
+          <p className="text-lg md:text-xl text-[#94a3b8] max-w-2xl mx-auto mb-10 leading-relaxed">
+            Scannit buys bare-metal NVIDIA hardware and leases it to enterprise AI teams. Nothing
+            here is on sale yet, and the waitlist is where we&apos;ll announce it when there is.
           </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
              <a 
@@ -90,10 +141,17 @@ export default function NodePage() {
       </section>
 
       {/* Sections */}
-      <TelemetrySection openModal={openModal} />
+      <TelemetrySection openModal={openModal} rates={rates} failed={ratesFailed} />
       <RevenueArchitecture />
       <FlywheelSection />
       <WaitlistSection />
+
+      <div className="px-5 pb-16 relative z-10">
+        <p className="max-w-3xl mx-auto text-xs text-slate-600 leading-relaxed text-center border-t border-white/5 pt-8">
+          This page describes what Scannit does as a business. It is not an offer to sell anything,
+          it is not an invitation to invest, and it is not financial advice.
+        </p>
+      </div>
 
       {/* Shared Waitlist Modal */}
       <WaitlistModal
