@@ -3,12 +3,14 @@ import { getMarketRates } from '@/lib/internal/vpsClient';
 // Same family prefixes the internal comparison panel groups by; gpu_type
 // strings are already canonicalized upstream, so this is a prefix match, not
 // a fresh canonicalization pass. Labels are the public-facing wording.
+// Display order, newest and highest-density first. The API preserves it, so
+// the cards render in this sequence without sorting client-side.
 const GPU_FAMILIES = [
-  { prefix: 'RTX PRO 6000', label: 'NVIDIA RTX 6000 Pro' },
-  { prefix: 'B200', label: 'NVIDIA HGX B200' },
   { prefix: 'B300', label: 'NVIDIA B300 Ultra' },
-  { prefix: 'H100', label: 'NVIDIA H100' },
+  { prefix: 'B200', label: 'NVIDIA HGX B200' },
+  { prefix: 'RTX PRO 6000', label: 'NVIDIA RTX 6000 Pro' },
   { prefix: 'H200', label: 'NVIDIA H200' },
+  { prefix: 'H100', label: 'NVIDIA H100' },
 ];
 
 const SOURCE_LABELS = {
@@ -53,12 +55,18 @@ function rangeOf(values) {
 // not provider labels, because three Bittensor subnets reporting separately
 // are three independent readings under one name.
 function summarizeFamily(rows) {
-  const providers = new Set(rows.map((r) => providerOf(r.source)));
+  const readingsByProvider = new Map();
+  for (const row of rows) {
+    const provider = providerOf(row.source);
+    readingsByProvider.set(provider, (readingsByProvider.get(provider) ?? 0) + 1);
+  }
 
   return {
     current: rangeOf(rows.map((r) => r.current_rate_per_hr)),
     avg_7d: rangeOf(rows.map((r) => r.avg_7d_rate_per_hr)),
-    sources: [...providers].map((p) => SOURCE_LABELS[p] ?? p).sort(),
+    sources: [...readingsByProvider.entries()]
+      .map(([provider, readings]) => ({ name: SOURCE_LABELS[provider] ?? provider, readings }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     observations: rows.length,
   };
 }

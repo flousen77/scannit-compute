@@ -15,18 +15,21 @@ const usd = (value) => `$${value.toFixed(2)}`;
 // Cards publish the top of each family, not a blend. A single reading has no
 // "highest" to speak of, so it is labelled for what it is rather than dressed
 // up as the winner of a comparison that never happened.
-function headlineFor(gpu, basis) {
-  const range = gpu[basis];
-  if (!range) return null;
-  const single = gpu.observations === 1;
+// Readings per provider rather than a bare total, because three Bittensor
+// subnets reporting separately are three readings under one name, and a total
+// that disagreed with the source list read as a contradiction.
+function sourceSummary(sources) {
+  return sources
+    .map(({ name, readings }) => (readings > 1 ? `${name} (${readings})` : name))
+    .join(', ');
+}
 
-  return {
-    label: single ? 'Observed Rate' : 'Highest Observed Rate',
-    value: usd(range.high),
-    basis: single
-      ? 'Single observed rate'
-      : `Highest of ${gpu.observations} rates observed`,
-  };
+function deltaVs7d(gpu, basis) {
+  if (basis !== 'current') return null;
+  const now = gpu.current?.high;
+  const week = gpu.avg_7d?.high;
+  if (!now || !week) return null;
+  return ((now - week) / week) * 100;
 }
 
 export default function TelemetrySection({ openModal, rates, failed }) {
@@ -34,6 +37,7 @@ export default function TelemetrySection({ openModal, rates, failed }) {
 
   const gpus = rates?.gpus ?? [];
   const isLoading = !rates && !failed;
+
 
   return (
     <section id="telemetry" className="py-12 relative z-10 px-5">
@@ -96,61 +100,61 @@ export default function TelemetrySection({ openModal, rates, failed }) {
           </div>
         </div>
 
-        {/* Market Rate Cards */}
+        {/* Market rate comparison */}
         {failed ? (
           <div className="text-center text-sm text-slate-500 font-mono py-12">
             Live rates are temporarily unavailable.
           </div>
+        ) : isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-16 rounded-lg bg-white/[0.02] animate-pulse" />
+            ))}
+          </div>
         ) : (
-          // Flex-wrap rather than a grid so a trailing partial row centres
-          // instead of leaving a hole on the right at five cards.
-          <div className="flex flex-wrap justify-center gap-6 text-left">
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="basis-full md:basis-[calc(50%-0.75rem)] lg:basis-[calc(33.333%-1rem)] bg-white/[0.02] border border-white/5 rounded-2xl p-8 h-[260px] animate-pulse"
-                  />
-                ))
-              : gpus.map((gpu) => {
-                  const headline = headlineFor(gpu, basis);
-                  return (
-                  <div
-                    key={gpu.key}
-                    className="basis-full md:basis-[calc(50%-0.75rem)] lg:basis-[calc(33.333%-1rem)] bg-white/[0.02] border border-white/5 hover:border-[#06b6d4]/50 hover:bg-[#06b6d4]/[0.04] hover:shadow-[0_0_25px_rgba(6,182,212,0.15)] rounded-2xl p-8 transition-all"
-                  >
-                    <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
-                      <i className={`fas ${CARD_ICONS[gpu.key] ?? 'fa-microchip'} text-slate-500 text-xl`}></i>
-                      <h3 className="text-lg font-bold text-white">{gpu.label}</h3>
-                    </div>
+          // Five independent readings, not a ranking: nothing useful follows
+          // from one GPU's hourly rate being higher than another's, since the
+          // hardware costs more to buy in roughly the same proportion. Tiles
+          // present them as separate facts. Flex-wrap centres any partial row
+          // rather than leaving a hole on the right.
+          <div className="flex flex-wrap justify-center gap-4 text-left">
+            {gpus.map((gpu) => {
+              const value = gpu[basis]?.high;
+              const delta = deltaVs7d(gpu, basis);
 
-                    <div className="text-[0.75rem] text-[#64748b] uppercase tracking-wider font-semibold">
-                      {headline?.label ?? 'Observed Rate'}
-                    </div>
-                    <div className="text-3xl font-extrabold text-white tracking-tight my-2">
-                      {headline?.value ?? '—'}
-                      <span className="text-base font-semibold text-slate-500 ml-1">/hr</span>
-                    </div>
-                    <div className="text-xs text-slate-500 mb-8 font-mono">
-                      {headline?.basis}
-                      {basis === 'avg_7d' ? ', 7-day average' : ''}
-                    </div>
-
-                    <div className="space-y-4 text-xs font-mono">
-                      <div className="flex justify-between items-center border-b border-white/[0.02] pb-2 gap-4">
-                        <span className="text-slate-500 font-bold tracking-wider shrink-0">
-                          {gpu.sources.length > 1 ? 'SOURCES' : 'SOURCE'}
-                        </span>
-                        <span className="text-[#94a3b8] text-right">{gpu.sources.join(', ')}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-500 font-bold tracking-wider">NETWORK STATUS</span>
-                        <span className="text-[#94a3b8]">Operational</span>
-                      </div>
-                    </div>
+              return (
+                <div
+                  key={gpu.key}
+                  className="basis-full sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(33.333%-0.667rem)] xl:basis-[calc(20%-0.8rem)] bg-white/[0.02] border border-white/5 hover:border-[#06b6d4]/50 hover:bg-[#06b6d4]/[0.04] rounded-xl p-5 transition-all"
+                >
+                  <div className="flex items-center gap-2 mb-5">
+                    <i
+                      className={`fas ${CARD_ICONS[gpu.key] ?? 'fa-microchip'} text-[#06b6d4]/70 text-sm shrink-0`}
+                    ></i>
+                    <h3 className="text-sm font-semibold text-white leading-tight">{gpu.label}</h3>
                   </div>
-                  );
-                })}
+
+                  <div className="text-[0.6rem] text-slate-600 uppercase tracking-widest font-mono mb-1.5">
+                    {gpu.observations === 1 ? 'Observed rate' : 'Highest observed'}
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-extrabold text-white tracking-tight leading-none">
+                      {usd(value)}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">/hr</span>
+                  </div>
+                  <div className="text-[0.7rem] font-mono text-slate-400 mt-1.5 h-4">
+                    {delta === null
+                      ? '7-day average'
+                      : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}% vs 7d`}
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-white/[0.06] text-[0.65rem] font-mono text-slate-600 leading-relaxed">
+                    {sourceSummary(gpu.sources)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
