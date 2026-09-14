@@ -6,6 +6,7 @@ import {
   getDailyEarnings,
   getMarketRates,
 } from '@/lib/internal/vpsClient';
+import { netuidFor } from '@/lib/internal/clusterOptions';
 import { formatRelativeTime } from '@/lib/internal/dateRanges';
 import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard';
 
@@ -23,21 +24,23 @@ async function loadClusterData(cluster) {
     return { earnings: null, nodes: null, dailySeries: null, onboardedAt: null, lastSyncedAt: null, error: null };
   }
 
+  const netuid = netuidFor(cluster.subnet.platform);
   const uid = cluster.subnet.uidNumber;
-  const snapshot = await getEarningsSnapshot(uid).catch(() => null);
+  const nodeKey = cluster.subnet.nodeId ?? null;
+  const snapshot = await getEarningsSnapshot(netuid, uid).catch(() => null);
   const onboardedAt = snapshot?.onboarded_at ?? null;
   const lastSyncedAt = snapshot?.last_synced_at ?? null;
 
   // Independent of the earnings/nodes fetch below — a sparkline fetch failure
   // shouldn't take down the card's primary earnings display.
-  const dailySeries = await getDailyEarnings(uid, 30)
+  const dailySeries = await getDailyEarnings(netuid, uid, 30)
     .then((data) => data.series)
     .catch(() => null);
 
   try {
     const [earnings, nodes] = await Promise.all([
-      getEarnings(uid, { window: INITIAL_WINDOW }),
-      getNodes(uid),
+      getEarnings(netuid, uid, { window: INITIAL_WINDOW }, nodeKey),
+      getNodes(netuid, uid, nodeKey),
     ]);
     return { earnings, nodes, dailySeries, onboardedAt, lastSyncedAt, error: null };
   } catch (error) {

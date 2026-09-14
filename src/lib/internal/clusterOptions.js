@@ -1,5 +1,48 @@
 export const COMPUTE_TYPE_SUGGESTIONS = ['RTX 6000 Pro', 'HGX B200', 'B300'];
-export const SUBNET_PLATFORMS = ['targon'];
+export const SUBNET_PLATFORMS = ['targon', 'lium'];
+
+// Which Bittensor subnet each platform is. Derived from the platform rather
+// than stored on the cluster record, so the two can't drift apart and
+// existing records need no migration.
+//
+// This mapping is why it exists at all: uid numbers are only unique *within*
+// a subnet, and ours actually collide — the Targon cluster is SN4 uid 162
+// and the Lium cluster is SN51 uid 162. Every read of cached earnings has to
+// be keyed on the pair, never the uid alone.
+export const SUBNET_NETUID = {
+  targon: 4,
+  lium: 51,
+};
+
+export const SUBNET_PLATFORM_LABEL = {
+  targon: 'Targon',
+  lium: 'Lium',
+};
+
+export function netuidFor(platform) {
+  return SUBNET_NETUID[platform] ?? null;
+}
+
+// Platforms that publish a stable per-machine id, so one cluster can track
+// one physical box rather than the whole uid.
+//
+// Targon isn't here and can't be: it reports one combined bucket per card
+// type, so two identical machines under a uid are indistinguishable in its
+// data. Splitting a Targon uid across clusters would mean inventing a ratio.
+export const NODE_SCOPED_PLATFORMS = ['lium'];
+
+export function supportsNodeScope(platform) {
+  return NODE_SCOPED_PLATFORMS.includes(platform);
+}
+
+// Node ids are uuids — too long to display, but the first and last groups are
+// enough to tell two machines apart at a glance and to match against the
+// provider portal.
+export function shortNodeId(nodeId) {
+  if (!nodeId) return null;
+  if (nodeId.length <= 17) return nodeId;
+  return `${nodeId.slice(0, 8)}…${nodeId.slice(-4)}`;
+}
 export const COST_MODES = [
   { value: 'per_hour', label: 'Per Hour' },
   { value: 'per_month', label: 'Per Month' },

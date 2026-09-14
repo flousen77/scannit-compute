@@ -127,11 +127,35 @@ function variantHeading(gpuType, prefix) {
   return suffix ?? gpuType;
 }
 
+// Variants Scannit does not own, per the founder: the fleet is RTX PRO 6000
+// *Server Edition* throughout. A Workstation or Max-Q rate is a real market
+// rate for real hardware, just not for hardware we can earn on — letting one
+// win "best rate" compares our revenue against a machine we don't have.
+//
+// Rows are excluded from the headline comparison only, not from the expanded
+// table, where seeing the whole market is the point.
+//
+// "(unspecified variant)" is deliberately NOT excluded: Chutes and Targon
+// can't distinguish sub-variants at all, and dropping them would remove
+// Targon — our largest earner — from the RTX comparison entirely. Keeping a
+// row that might be our SKU beats silently losing the one that matters.
+const FLEET_EXCLUDED_VARIANTS = ['Workstation Edition', 'Max-Q'];
+
+function matchesFleetSku(row) {
+  return !FLEET_EXCLUDED_VARIANTS.some((variant) => row.gpu_type?.includes(variant));
+}
+
 // Shared by the scorecard (across every variant in a tab) and each expanded
 // table (within one variant group) — same rule either way: highest
 // current_rate_per_hr, skipping rows with no usable rate.
-function findTopPayer(rows) {
-  const rated = rows.filter((r) => r.current_rate_per_hr != null);
+//
+// `fleetOnly` narrows to variants we actually run. The scorecard sets it,
+// since that number is read as "what our hardware could earn elsewhere".
+// Per-variant tables don't, since there the variant is already the heading.
+function findTopPayer(rows, { fleetOnly = false } = {}) {
+  const rated = rows.filter(
+    (r) => r.current_rate_per_hr != null && (!fleetOnly || matchesFleetSku(r))
+  );
   if (rated.length === 0) return null;
   return rated.reduce((best, r) => (r.current_rate_per_hr > best.current_rate_per_hr ? r : best));
 }
@@ -141,7 +165,7 @@ function ScoreCard({ rows }) {
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {GPU_TABS.map((tab) => {
         const tabRows = rows.filter((r) => r.gpu_type.startsWith(tab.prefix));
-        const top = findTopPayer(tabRows);
+        const top = findTopPayer(tabRows, { fleetOnly: true });
         return (
           <div key={tab.prefix} className="bg-black/30 border border-white/10 rounded-xl px-4 py-3">
             <div className="text-[10px] uppercase tracking-wide text-brand-muted mb-1">{tab.label}</div>

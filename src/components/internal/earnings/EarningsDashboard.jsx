@@ -7,6 +7,7 @@ import ClusterFormModal from './ClusterFormModal';
 import PortfolioTotalsBar from './PortfolioTotalsBar';
 import MarketRateComparisonPanel from './MarketRateComparisonPanel';
 import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
+import { netuidFor, HOSTING_MODES } from '@/lib/internal/clusterOptions';
 import { currentMonthRange, lastMonthRange } from '@/lib/internal/dateRanges';
 
 function buildTotalsRangeQuery(basis) {
@@ -50,10 +51,12 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
     Promise.all(
       subnetEntries.map(async ({ cluster }) => {
         const uid = cluster.subnet.uidNumber;
+        const netuid = netuidFor(cluster.subnet.platform);
+        const nodeParam = cluster.subnet.nodeId ? `&nodeKey=${cluster.subnet.nodeId}` : '';
         try {
           const [earningsRes, nodesRes] = await Promise.all([
-            fetch(`/api/internal/uids/${uid}/earnings?${query}`),
-            fetch(`/api/internal/uids/${uid}/nodes?${query}`),
+            fetch(`/api/internal/uids/${uid}/earnings?${query}&netuid=${netuid}${nodeParam}`),
+            fetch(`/api/internal/uids/${uid}/nodes?${query}&netuid=${netuid}${nodeParam}`),
           ]);
           const [earnings, nodes] = await Promise.all([earningsRes.json(), nodesRes.json()]);
           return [
@@ -94,10 +97,23 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
     [clustersForTotals, includeForecast]
   );
 
-  const filteredClusters =
+  // Live clusters first, forecasts last. Creation order put a hypothetical
+  // cluster above earning hardware, which buries the numbers that are
+  // actually real. Ordering follows HOSTING_MODES (subnet, contract,
+  // forecast) so it can't drift from the filter pills, and the sort is
+  // stable, so clusters within a segment keep the order they were added in.
+  const hostingModeRank = (mode) => {
+    const index = HOSTING_MODES.findIndex((m) => m.value === mode);
+    return index === -1 ? HOSTING_MODES.length : index;
+  };
+
+  const filteredClusters = (
     segmentFilter === 'all'
       ? clustersWithData
-      : clustersWithData.filter(({ cluster }) => cluster.hostingMode === segmentFilter);
+      : clustersWithData.filter(({ cluster }) => cluster.hostingMode === segmentFilter)
+  )
+    .slice()
+    .sort((a, b) => hostingModeRank(a.cluster.hostingMode) - hostingModeRank(b.cluster.hostingMode));
 
   function closeForm() {
     setFormTarget(null);
