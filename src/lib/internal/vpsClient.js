@@ -48,24 +48,51 @@ function hoursForBucket(dateStr, today) {
   return Math.max(elapsedMs / (1000 * 60 * 60), 0);
 }
 
-// A node's share of its uid's revenue on one day, or null when that day has
-// no split recorded. Null is not 0: "we don't know how to divide this day"
-// and "this machine earned nothing" are different, and only the first should
-// cause a day to be skipped rather than zeroed.
-function nodeShareOn(entry, nodeKey) {
+// A node's share of its uid's revenue ACROSS a set of days, weighted by what
+// the provider reported it earned on each.
+//
+// Deliberately not a per-day ratio applied to that same day's revenue. Money
+// appears in daily_series under the date of the Kraken SALE, while node
+// shares are keyed by the date the provider says it was EARNED. Those are
+// different date spaces. Targon hides the difference by selling every six
+// hours; Lium's first sale covers ~2.5 days of accumulation, and splitting
+// it by the settlement day's ratio alone would put roughly $13 of $507 on
+// the wrong machine.
+//
+// Weighting across the whole range never has to line the two up: it asks
+// "of everything this cluster earned in this window, how much was this
+// machine" and applies that to everything realized in the window.
+//
+// Returns null when no day in range reports anything — "we cannot divide
+// this" is not the same as "this machine earned nothing", and only the
+// former should suppress a figure rather than show zero.
+function nodeShareOverRange(entries, nodeKey) {
   if (!nodeKey) return 1;
-  return entry?.node_shares?.[nodeKey] ?? null;
+
+  let nodeTotal = 0;
+  let allTotal = 0;
+  for (const entry of entries) {
+    const reported = entry?.node_reported_usd;
+    if (!reported) continue;
+    for (const [key, usd] of Object.entries(reported)) {
+      allTotal += usd;
+      if (key === nodeKey) nodeTotal += usd;
+    }
+  }
+
+  if (allTotal <= 0) return null;
+  return nodeTotal / allTotal;
 }
 
-// The most recent day that carries a split for this node. Used for the 24h
-// window, which reads live_24h and so has no day of its own to look up.
-function latestNodeShare(dailySeries, nodeKey) {
+// The 24h window reads live_24h, which has no date range of its own. Two
+// days of reported data are used rather than one so the weighting doesn't
+// swing on a partial day that has only had a few validator cycles.
+const LIVE_SHARE_LOOKBACK_DAYS = 2;
+
+function liveNodeShare(dailySeries, nodeKey) {
   if (!nodeKey) return 1;
-  for (let i = dailySeries.length - 1; i >= 0; i -= 1) {
-    const share = dailySeries[i]?.node_shares?.[nodeKey];
-    if (share != null) return share;
-  }
-  return null;
+  const withReports = dailySeries.filter((d) => d?.node_reported_usd);
+  return nodeShareOverRange(withReports.slice(-LIVE_SHARE_LOOKBACK_DAYS), nodeKey);
 }
 
 // Sums daily_series entries within [sinceDate, untilDate] (inclusive, UTC
@@ -73,28 +100,22 @@ function latestNodeShare(dailySeries, nodeKey) {
 // `since` in the result reflects whichever day the data actually starts
 // from, so a badge/label can tell honestly if it's shorter than requested.
 //
-// `nodeKey` scopes the aggregate to one physical machine. Each day is scaled
-// by ITS OWN share, never by a single current ratio — the split genuinely
-// moves day to day (40/60, 45/55, 39/61 across three consecutive days), so a
-// flat ratio would misattribute historical revenue between machines.
-//
-// Because the shares within a day sum to 1, node-scoped clusters over the
-// same uid sum to exactly that uid's realized revenue. No double counting,
-// no invented money.
+// `nodeKey` scopes the aggregate to one physical machine, using a single
+// share computed across the whole range (see nodeShareOverRange). Because
+// every node's share over a given range sums to 1, node-scoped clusters over
+// the same uid sum to exactly that uid's realized revenue. No double
+// counting, no invented money.
 function aggregateRange(dailySeries, sinceDate, untilDate, nodeKey = null) {
   const today = todayUTCDateStr();
-  const bucketsInRange = dailySeries
-    .filter((d) => d.date >= sinceDate && d.date <= untilDate)
-    // A day with no split for this node is dropped rather than counted as
-    // zero, so an unreported day can't quietly drag a machine's average down.
-    .filter((d) => nodeShareOn(d, nodeKey) != null);
+  const bucketsInRange = dailySeries.filter((d) => d.date >= sinceDate && d.date <= untilDate);
 
-  const usd_realized = bucketsInRange.reduce(
-    (sum, d) => sum + d.usd_realized * nodeShareOn(d, nodeKey), 0
-  );
-  const tao_earned = bucketsInRange.reduce(
-    (sum, d) => sum + d.tao_earned * nodeShareOn(d, nodeKey), 0
-  );
+  // One share for the whole range, so it cannot matter which day inside it
+  // a given sale settled on.
+  const share = nodeShareOverRange(bucketsInRange, nodeKey);
+  const scale = share ?? 0;
+
+  const usd_realized = bucketsInRange.reduce((sum, d) => sum + d.usd_realized, 0) * scale;
+  const tao_earned = bucketsInRange.reduce((sum, d) => sum + d.tao_earned, 0) * scale;
   const fill_count = bucketsInRange.reduce((sum, d) => sum + (d.fill_count ?? 0), 0);
   const hours = bucketsInRange.reduce((sum, d) => sum + hoursForBucket(d.date, today), 0);
   const actualSince = bucketsInRange.length > 0 ? bucketsInRange[0].date : sinceDate;
@@ -105,6 +126,7 @@ function aggregateRange(dailySeries, sinceDate, untilDate, nodeKey = null) {
     fill_count,
     hours,
     earnings_per_hour_usd: hours ? usd_realized / hours : null,
+    node_share: share,
     since: actualSince,
     until: untilDate,
   };
@@ -153,7 +175,7 @@ export async function getEarnings(netuid, uid, range, nodeKey = null) {
   const payload = await readEarningsPayload(netuid, uid);
 
   if (!range?.since && (!range?.window || range.window === '24h')) {
-    const share = latestNodeShare(payload.daily_series || [], nodeKey);
+    const share = liveNodeShare(payload.daily_series || [], nodeKey);
     const live = payload.live_24h;
     // A node-scoped cluster with no share yet reports null rather than the
     // whole uid's revenue — showing one machine the cluster total would be
