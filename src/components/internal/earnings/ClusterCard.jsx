@@ -5,7 +5,7 @@ import EarningsStat from './EarningsStat';
 import EarningsSparkline from './EarningsSparkline';
 import TimeWindowToggle from './TimeWindowToggle';
 import { getWindowConfig } from '@/lib/internal/windows';
-import { HOSTING_MODE_LABEL, HOSTING_MODE_BADGE_CLASS } from '@/lib/internal/clusterOptions';
+import { netuidFor, HOSTING_MODE_LABEL, HOSTING_MODE_BADGE_CLASS } from '@/lib/internal/clusterOptions';
 import {
   deriveSubnetEarnings,
   deriveContractEarnings,
@@ -214,13 +214,14 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
   const [loading, setLoading] = useState(false);
 
   const uid = cluster.subnet?.uidNumber;
+  const netuid = netuidFor(cluster.subnet?.platform);
 
   async function fetchRange(query) {
     setLoading(true);
     try {
       const [earningsRes, nodesRes] = await Promise.all([
-        fetch(`/api/internal/uids/${uid}/earnings?${query}`),
-        fetch(`/api/internal/uids/${uid}/nodes?${query}`),
+        fetch(`/api/internal/uids/${uid}/earnings?${query}&netuid=${netuid}`),
+        fetch(`/api/internal/uids/${uid}/nodes?${query}&netuid=${netuid}`),
       ]);
       const [earningsData, nodesData] = await Promise.all([
         earningsRes.json(),

@@ -1,5 +1,27 @@
 export const COMPUTE_TYPE_SUGGESTIONS = ['RTX 6000 Pro', 'HGX B200', 'B300'];
-export const SUBNET_PLATFORMS = ['targon'];
+export const SUBNET_PLATFORMS = ['targon', 'lium'];
+
+// Which Bittensor subnet each platform is. Derived from the platform rather
+// than stored on the cluster record, so the two can't drift apart and
+// existing records need no migration.
+//
+// This mapping is why it exists at all: uid numbers are only unique *within*
+// a subnet, and ours actually collide — the Targon cluster is SN4 uid 162
+// and the Lium cluster is SN51 uid 162. Every read of cached earnings has to
+// be keyed on the pair, never the uid alone.
+export const SUBNET_NETUID = {
+  targon: 4,
+  lium: 51,
+};
+
+export const SUBNET_PLATFORM_LABEL = {
+  targon: 'Targon',
+  lium: 'Lium',
+};
+
+export function netuidFor(platform) {
+  return SUBNET_NETUID[platform] ?? null;
+}
 export const COST_MODES = [
   { value: 'per_hour', label: 'Per Hour' },
   { value: 'per_month', label: 'Per Month' },

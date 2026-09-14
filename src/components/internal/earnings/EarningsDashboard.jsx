@@ -7,6 +7,7 @@ import ClusterFormModal from './ClusterFormModal';
 import PortfolioTotalsBar from './PortfolioTotalsBar';
 import MarketRateComparisonPanel from './MarketRateComparisonPanel';
 import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
+import { netuidFor } from '@/lib/internal/clusterOptions';
 import { currentMonthRange, lastMonthRange } from '@/lib/internal/dateRanges';
 
 function buildTotalsRangeQuery(basis) {
@@ -50,10 +51,11 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
     Promise.all(
       subnetEntries.map(async ({ cluster }) => {
         const uid = cluster.subnet.uidNumber;
+        const netuid = netuidFor(cluster.subnet.platform);
         try {
           const [earningsRes, nodesRes] = await Promise.all([
-            fetch(`/api/internal/uids/${uid}/earnings?${query}`),
-            fetch(`/api/internal/uids/${uid}/nodes?${query}`),
+            fetch(`/api/internal/uids/${uid}/earnings?${query}&netuid=${netuid}`),
+            fetch(`/api/internal/uids/${uid}/nodes?${query}&netuid=${netuid}`),
           ]);
           const [earnings, nodes] = await Promise.all([earningsRes.json(), nodesRes.json()]);
           return [

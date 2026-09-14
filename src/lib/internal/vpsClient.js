@@ -14,14 +14,22 @@ function getClient() {
   return new Redis({ url, token });
 }
 
-function earningsKey(uid) {
-  return `earnings:${uid}`;
+// Keyed on (netuid, uid), never uid alone: uid numbers are only unique within
+// a subnet and ours collide — Targon is SN4 uid 162, Lium is SN51 uid 162.
+// The VPS sync writes this format; it also still writes the old `earnings:162`
+// for Targon so this migration could land without a blank dashboard, and that
+// dual-write is removed once this is deployed.
+function earningsKey(netuid, uid) {
+  return `earnings:${netuid}:${uid}`;
 }
 
-async function readEarningsPayload(uid) {
-  const payload = await getClient().get(earningsKey(uid));
+async function readEarningsPayload(netuid, uid) {
+  if (netuid == null) {
+    throw new Error(`netuid is required to read earnings for uid ${uid}`);
+  }
+  const payload = await getClient().get(earningsKey(netuid, uid));
   if (!payload) {
-    throw new Error(`No cached earnings for uid ${uid}`);
+    throw new Error(`No cached earnings for netuid ${netuid} uid ${uid}`);
   }
   return payload;
 }
@@ -85,31 +93,41 @@ function resolveRangeDates(range) {
   return null; // 24h / Live — handled via live_24h directly, not daily_series.
 }
 
+// Only namespaced keys are listed. The legacy `earnings:{uid}` key the VPS
+// still dual-writes is deliberately skipped, so Targon can't appear twice.
 export async function getUids() {
   const client = getClient();
-  const keys = await client.keys('earnings:*');
+  const keys = (await client.keys('earnings:*')).filter(
+    (key) => key.split(':').length === 3
+  );
   const payloads = await Promise.all(keys.map((key) => client.get(key)));
-  return keys.map((key, i) => ({
-    uid_number: Number(key.slice('earnings:'.length)),
-    onboarded_at: payloads[i]?.onboarded_at ?? null,
-  }));
+  return keys.map((key, i) => {
+    const [, netuid, uidNumber] = key.split(':');
+    return {
+      netuid: Number(netuid),
+      uid_number: Number(uidNumber),
+      subnet: payloads[i]?.subnet ?? null,
+      onboarded_at: payloads[i]?.onboarded_at ?? null,
+    };
+  });
 }
 
-export async function getEarnings(uid, range) {
-  const payload = await readEarningsPayload(uid);
+export async function getEarnings(netuid, uid, range) {
+  const payload = await readEarningsPayload(netuid, uid);
 
   if (!range?.since && (!range?.window || range.window === '24h')) {
-    return { uid: Number(uid), window: '24h', hours: 24, source: 'cache', ...payload.live_24h };
+    return { netuid: Number(netuid), uid: Number(uid), window: '24h', hours: 24, source: 'cache', ...payload.live_24h };
   }
 
   const { sinceDate, untilDate } = resolveRangeDates(range);
   const aggregate = aggregateRange(payload.daily_series, sinceDate, untilDate);
-  return { uid: Number(uid), source: 'cache', ...aggregate };
+  return { netuid: Number(netuid), uid: Number(uid), source: 'cache', ...aggregate };
 }
 
-export async function getNodes(uid) {
-  const payload = await readEarningsPayload(uid);
+export async function getNodes(netuid, uid) {
+  const payload = await readEarningsPayload(netuid, uid);
   return {
+    netuid: Number(netuid),
     uid: Number(uid),
     nodes: payload.nodes ? [payload.nodes] : [],
     combined: { avg_cards: payload.nodes?.avg_cards ?? null },
@@ -117,16 +135,16 @@ export async function getNodes(uid) {
   };
 }
 
-export async function getDailyEarnings(uid, days = 30) {
-  const payload = await readEarningsPayload(uid);
+export async function getDailyEarnings(netuid, uid, days = 30) {
+  const payload = await readEarningsPayload(netuid, uid);
   return { series: payload.daily_series.slice(-days) };
 }
 
 // Raw cached payload — used for onboarded_at / last_synced_at without a
 // separate call, since the earnings dashboard's initial load needs both
 // alongside the earnings/nodes/daily-series data it already fetches.
-export async function getEarningsSnapshot(uid) {
-  return readEarningsPayload(uid);
+export async function getEarningsSnapshot(netuid, uid) {
+  return readEarningsPayload(netuid, uid);
 }
 
 // Consolidated market-rate comparison, pushed by a separate VPS job (not the
