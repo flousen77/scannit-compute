@@ -26,6 +26,7 @@ async function loadClusterData(cluster) {
 
   const netuid = netuidFor(cluster.subnet.platform);
   const uid = cluster.subnet.uidNumber;
+  const nodeKey = cluster.subnet.nodeId ?? null;
   const snapshot = await getEarningsSnapshot(netuid, uid).catch(() => null);
   const onboardedAt = snapshot?.onboarded_at ?? null;
   const lastSyncedAt = snapshot?.last_synced_at ?? null;
@@ -38,8 +39,8 @@ async function loadClusterData(cluster) {
 
   try {
     const [earnings, nodes] = await Promise.all([
-      getEarnings(netuid, uid, { window: INITIAL_WINDOW }),
-      getNodes(netuid, uid),
+      getEarnings(netuid, uid, { window: INITIAL_WINDOW }, nodeKey),
+      getNodes(netuid, uid, nodeKey),
     ]);
     return { earnings, nodes, dailySeries, onboardedAt, lastSyncedAt, error: null };
   } catch (error) {

@@ -52,10 +52,11 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
       subnetEntries.map(async ({ cluster }) => {
         const uid = cluster.subnet.uidNumber;
         const netuid = netuidFor(cluster.subnet.platform);
+        const nodeParam = cluster.subnet.nodeId ? `&nodeKey=${cluster.subnet.nodeId}` : '';
         try {
           const [earningsRes, nodesRes] = await Promise.all([
-            fetch(`/api/internal/uids/${uid}/earnings?${query}&netuid=${netuid}`),
-            fetch(`/api/internal/uids/${uid}/nodes?${query}&netuid=${netuid}`),
+            fetch(`/api/internal/uids/${uid}/earnings?${query}&netuid=${netuid}${nodeParam}`),
+            fetch(`/api/internal/uids/${uid}/nodes?${query}&netuid=${netuid}${nodeParam}`),
           ]);
           const [earnings, nodes] = await Promise.all([earningsRes.json(), nodesRes.json()]);
           return [

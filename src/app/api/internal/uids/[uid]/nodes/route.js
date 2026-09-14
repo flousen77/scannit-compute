@@ -7,6 +7,7 @@ export async function GET(request, { params }) {
   }
 
   const { uid } = await params;
+  const nodeKey = request.nextUrl.searchParams.get('nodeKey') || null;
   const netuid = Number(request.nextUrl.searchParams.get('netuid'));
   if (!Number.isInteger(netuid)) {
     // Required, never defaulted: uid 162 exists on both SN4 and SN51, so a
@@ -20,7 +21,7 @@ export async function GET(request, { params }) {
   const range = since ? { since, until: until || undefined } : { window: window || '24h' };
 
   try {
-    const nodes = await getNodes(netuid, uid);
+    const nodes = await getNodes(netuid, uid, nodeKey);
     return Response.json(nodes);
   } catch (error) {
     return Response.json({ error: error.message }, { status: 502 });

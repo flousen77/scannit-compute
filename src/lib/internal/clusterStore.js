@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import { SUBNET_PLATFORMS, COST_MODES, CONTRACT_SHAPED_MODES } from './clusterOptions';
+import {
+  SUBNET_PLATFORMS,
+  COST_MODES,
+  CONTRACT_SHAPED_MODES,
+  supportsNodeScope,
+} from './clusterOptions';
 import { readClusters, writeClusters } from './clusterStorage';
 
 const COST_MODE_VALUES = COST_MODES.map((m) => m.value);
@@ -33,11 +38,20 @@ function normalizeClusterInput(input) {
       throw new Error('subnet.uidNumber must be an integer');
     }
 
+    // nodeId narrows a cluster to one physical machine within the uid.
+    // Only meaningful where the platform publishes per-machine ids: Targon
+    // reports a single combined bucket per card type, so a nodeId there
+    // would be a label with nothing behind it.
+    const nodeId = String(input.subnet?.nodeId || '').trim() || null;
+    if (nodeId && !supportsNodeScope(platform)) {
+      throw new Error(`subnet.nodeId is not supported for platform "${platform}"`);
+    }
+
     return {
       name,
       computeType,
       hostingMode: 'subnet',
-      subnet: { platform, uidNumber },
+      subnet: { platform, uidNumber, nodeId },
       contract: null,
       cost: normalizeCost(input.cost),
     };

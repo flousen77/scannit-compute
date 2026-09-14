@@ -5,7 +5,13 @@ import EarningsStat from './EarningsStat';
 import EarningsSparkline from './EarningsSparkline';
 import TimeWindowToggle from './TimeWindowToggle';
 import { getWindowConfig } from '@/lib/internal/windows';
-import { netuidFor, HOSTING_MODE_LABEL, HOSTING_MODE_BADGE_CLASS } from '@/lib/internal/clusterOptions';
+import {
+  netuidFor,
+  shortNodeId,
+  SUBNET_PLATFORM_LABEL,
+  HOSTING_MODE_LABEL,
+  HOSTING_MODE_BADGE_CLASS,
+} from '@/lib/internal/clusterOptions';
 import {
   deriveSubnetEarnings,
   deriveContractEarnings,
@@ -83,6 +89,24 @@ function ClusterHeader({ cluster, children, onEdit, onDelete, onConvertTo }) {
           >
             {HOSTING_MODE_LABEL[cluster.hostingMode]}
           </span>
+          {cluster.subnet?.platform && (
+            <span className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-[#94a3b8] capitalize">
+              {SUBNET_PLATFORM_LABEL[cluster.subnet.platform] ?? cluster.subnet.platform}
+              {' · UID '}
+              {cluster.subnet.uidNumber}
+            </span>
+          )}
+          {/* Truncated because the full uuid is unreadable at this size, but
+              the first and last groups are enough to match a row in the
+              provider portal. Full id on hover for copy/paste. */}
+          {cluster.subnet?.nodeId && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-400 font-mono"
+              title={cluster.subnet.nodeId}
+            >
+              {shortNodeId(cluster.subnet.nodeId)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -215,13 +239,14 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
 
   const uid = cluster.subnet?.uidNumber;
   const netuid = netuidFor(cluster.subnet?.platform);
+  const nodeParam = cluster.subnet?.nodeId ? `&nodeKey=${cluster.subnet?.nodeId}` : '';
 
   async function fetchRange(query) {
     setLoading(true);
     try {
       const [earningsRes, nodesRes] = await Promise.all([
-        fetch(`/api/internal/uids/${uid}/earnings?${query}&netuid=${netuid}`),
-        fetch(`/api/internal/uids/${uid}/nodes?${query}&netuid=${netuid}`),
+        fetch(`/api/internal/uids/${uid}/earnings?${query}&netuid=${netuid}${nodeParam}`),
+        fetch(`/api/internal/uids/${uid}/nodes?${query}&netuid=${netuid}${nodeParam}`),
       ]);
       const [earningsData, nodesData] = await Promise.all([
         earningsRes.json(),

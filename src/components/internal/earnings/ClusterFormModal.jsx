@@ -1,7 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { COMPUTE_TYPE_SUGGESTIONS, SUBNET_PLATFORMS, COST_MODES, HOSTING_MODES } from '@/lib/internal/clusterOptions';
+import { useEffect, useState } from 'react';
+import {
+  COMPUTE_TYPE_SUGGESTIONS,
+  SUBNET_PLATFORMS,
+  COST_MODES,
+  HOSTING_MODES,
+  netuidFor,
+  supportsNodeScope,
+  shortNodeId,
+} from '@/lib/internal/clusterOptions';
 import DarkCalendar, { dateStrToLocalDate, localDateToDateStr } from './DarkCalendar';
 
 function today() {
@@ -19,6 +27,7 @@ function initialFormState(cluster, hostingModeOverride) {
     hostingMode: hostingModeOverride || cluster?.hostingMode || 'subnet',
     subnetPlatform: cluster?.subnet?.platform || SUBNET_PLATFORMS[0],
     subnetUidNumber: cluster?.subnet?.uidNumber ?? '',
+    subnetNodeId: cluster?.subnet?.nodeId || '',
     contractPricePerHourUsd: cluster?.contract?.pricePerHourUsd ?? '',
     contractCardCount: cluster?.contract?.cardCount ?? '',
     contractOnboardedAt: cluster?.contract?.onboardedAt || today(),
@@ -26,6 +35,43 @@ function initialFormState(cluster, hostingModeOverride) {
     costMode: cluster?.cost?.mode || COST_MODES[0].value,
     costValue: cluster?.cost?.value ?? '',
   };
+}
+
+// Node options come from the cached payload the VPS sync writes, so the
+// picker always reflects what the provider currently reports rather than
+// anything typed by hand — a machine added or removed on Lium appears or
+// disappears here with no config edit.
+function useNodeOptions(platform, uidNumber) {
+  const [nodeOptions, setNodeOptions] = useState([]);
+  const [nodesLoading, setNodesLoading] = useState(false);
+
+  useEffect(() => {
+    const netuid = netuidFor(platform);
+    if (!supportsNodeScope(platform) || !netuid || !uidNumber) {
+      setNodeOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    setNodesLoading(true);
+    fetch(`/api/internal/subnets/${netuid}/uids/${uidNumber}/nodes`)
+      .then((res) => (res.ok ? res.json() : { nodes: [] }))
+      .then((data) => {
+        if (!cancelled) setNodeOptions(data.nodes || []);
+      })
+      .catch(() => {
+        if (!cancelled) setNodeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setNodesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [platform, uidNumber]);
+
+  return { nodeOptions, nodesLoading };
 }
 
 function buildPayload(form) {
@@ -40,6 +86,10 @@ function buildPayload(form) {
     payload.subnet = {
       platform: form.subnetPlatform,
       uidNumber: Number(form.subnetUidNumber),
+      // Empty means the cluster tracks the whole uid. Only sent for
+      // platforms that publish per-machine ids; the store rejects it
+      // otherwise rather than storing a label with nothing behind it.
+      nodeId: supportsNodeScope(form.subnetPlatform) ? form.subnetNodeId || null : null,
     };
   } else {
     payload.contract = {
@@ -96,6 +146,7 @@ function DateField({ label, value, onChange }) {
 
 export default function ClusterFormModal({ cluster, initialHostingMode, onClose, onSaved }) {
   const [form, setForm] = useState(() => initialFormState(cluster, initialHostingMode));
+  const { nodeOptions, nodesLoading } = useNodeOptions(form.subnetPlatform, form.subnetUidNumber);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -194,32 +245,61 @@ export default function ClusterFormModal({ cluster, initialHostingMode, onClose,
           </div>
 
           {form.hostingMode === 'subnet' ? (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}>Subnet</label>
-                <select
-                  value={form.subnetPlatform}
-                  onChange={(e) => update('subnetPlatform', e.target.value)}
-                  className={inputClass}
-                >
-                  {SUBNET_PLATFORMS.map((platform) => (
-                    <option key={platform} value={platform} className="capitalize">
-                      {platform}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Subnet</label>
+                  <select
+                    value={form.subnetPlatform}
+                    onChange={(e) => update('subnetPlatform', e.target.value)}
+                    className={inputClass}
+                  >
+                    {SUBNET_PLATFORMS.map((platform) => (
+                      <option key={platform} value={platform} className="capitalize">
+                        {platform}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>UID Number</label>
+                  <input
+                    type="number"
+                    required
+                    value={form.subnetUidNumber}
+                    onChange={(e) => update('subnetUidNumber', e.target.value)}
+                    className={inputClass}
+                    placeholder="162"
+                  />
+                </div>
+              </div>
+
+              {supportsNodeScope(form.subnetPlatform) && (
+                <div>
+                  <label className={labelClass}>Node</label>
+                  <select
+                    value={form.subnetNodeId}
+                    onChange={(e) => update('subnetNodeId', e.target.value)}
+                    className={inputClass}
+                    disabled={nodesLoading}
+                  >
+                    <option value="">
+                      {nodesLoading ? 'Loading nodes…' : 'Whole UID (all nodes combined)'}
                     </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>UID Number</label>
-                <input
-                  type="number"
-                  required
-                  value={form.subnetUidNumber}
-                  onChange={(e) => update('subnetUidNumber', e.target.value)}
-                  className={inputClass}
-                  placeholder="162"
-                />
-              </div>
+                    {nodeOptions.map((n) => (
+                      <option key={n.node_key} value={n.node_key}>
+                        {shortNodeId(n.node_key)} — {n.cards}× {n.compute_type}
+                        {n.location_id ? ` (${n.location_id})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-[#94a3b8] mt-1.5">
+                    {nodeOptions.length > 1
+                      ? 'Track one machine, or leave as Whole UID to combine them. Per-node revenue is split by each day\'s reported share, so separate clusters still sum to the UID total.'
+                      : 'Reported by the provider. Leave as Whole UID unless you want this cluster to track a single machine.'}
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
