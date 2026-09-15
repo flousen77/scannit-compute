@@ -90,17 +90,29 @@ export default async function InternalEarningsPage() {
   return (
     <div className="bg-[#050508] text-white min-h-screen">
       <div className="max-w-5xl mx-auto px-5 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-baseline gap-3">
-            <h1 className="text-2xl font-bold">Cluster Earnings</h1>
-            {lastSyncedAt && (
-              <span
-                className="text-xs text-[#94a3b8]"
-                title={new Date(lastSyncedAt).toLocaleString()}
-              >
-                as of {formatRelativeTime(new Date(lastSyncedAt).getTime())}
-              </span>
-            )}
+        {/* Logo sits in the existing header row rather than a new bar above
+            it: a second row would cost ~60px of vertical space on every screen
+            to convey nothing the page doesn't already say. Same hosted asset
+            as the public navbar, at the same 32px, so the two match. */}
+        <div className="flex items-center justify-between mb-8 gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <img
+              src="https://imagedelivery.net/Ulul0QO-cXqPUi6uJcNN5g/a3924725-4e64-4885-0779-1aae85136500/public"
+              alt="Scannit"
+              className="h-8 w-auto shrink-0"
+            />
+            <span className="h-8 w-px bg-white/10 shrink-0" aria-hidden="true" />
+            <div className="flex items-baseline gap-3 min-w-0">
+              <h1 className="text-2xl font-bold truncate">Cluster Earnings</h1>
+              {lastSyncedAt && (
+                <span
+                  className="text-xs text-[#94a3b8] whitespace-nowrap"
+                  title={new Date(lastSyncedAt).toLocaleString()}
+                >
+                  as of {formatRelativeTime(new Date(lastSyncedAt).getTime())}
+                </span>
+              )}
+            </div>
           </div>
           <form method="POST" action="/api/internal/auth/logout">
             <button
