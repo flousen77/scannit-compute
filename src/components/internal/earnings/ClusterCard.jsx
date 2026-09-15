@@ -303,7 +303,7 @@ function RentalStatus({ node, nowMs, compact = false }) {
     : undefined;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wide rounded-full px-2 py-0.5 border ${tone}`} title={title}>
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono rounded-full px-2 py-0.5 border ${tone}`} title={title}>
       <span>{rented ? 'Rented' : 'Idle'}</span>
       {held && <span className="opacity-70">{held}</span>}
       {!compact && locked != null && (
