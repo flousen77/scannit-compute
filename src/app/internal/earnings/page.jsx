@@ -17,7 +17,12 @@ import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard'
 // once at build time and serve that same stale snapshot to every visitor.
 export const dynamic = 'force-dynamic';
 
-const INITIAL_WINDOW = '24h';
+// 7D, not 24h. Lium settles rental two days after it is earned, so a 24h
+// window catches either a settlement lump or none depending on the hour and
+// swings wildly between the two. Seven days is long enough for the lag to
+// average out, and it is what the collapsed cards default to — matching them
+// means the page renders once instead of refetching every card on mount.
+const INITIAL_WINDOW = '7d';
 
 async function loadClusterData(cluster) {
   if (cluster.hostingMode !== 'subnet') {
@@ -84,18 +89,33 @@ export default async function InternalEarningsPage() {
 
   return (
     <div className="bg-[#050508] text-white min-h-screen">
-      <div className="max-w-5xl mx-auto px-5 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-baseline gap-3">
-            <h1 className="text-2xl font-bold">Cluster Earnings</h1>
-            {lastSyncedAt && (
-              <span
-                className="text-xs text-[#94a3b8]"
-                title={new Date(lastSyncedAt).toLocaleString()}
-              >
-                as of {formatRelativeTime(new Date(lastSyncedAt).getTime())}
-              </span>
-            )}
+      {/* Sticky because of the "as of" timestamp. Every figure below is only
+          as good as that timestamp, and if the VPS sync stops there is no
+          other signal — a stale dashboard looks exactly like a fresh one once
+          the header has scrolled away. The logo shares this row rather than
+          getting a bar of its own: a second row would cost ~60px on every
+          screen to convey nothing the page doesn't already say. Same hosted
+          asset as the public navbar, at the same 32px, so the two match. */}
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#050508]/90 backdrop-blur-sm">
+        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <img
+              src="https://imagedelivery.net/Ulul0QO-cXqPUi6uJcNN5g/a3924725-4e64-4885-0779-1aae85136500/public"
+              alt="Scannit"
+              className="h-8 w-auto shrink-0"
+            />
+            <span className="h-8 w-px bg-white/10 shrink-0" aria-hidden="true" />
+            <div className="flex items-baseline gap-3 min-w-0">
+              <h1 className="text-2xl font-bold truncate">Cluster Earnings</h1>
+              {lastSyncedAt && (
+                <span
+                  className="text-xs text-[#94a3b8] whitespace-nowrap"
+                  title={new Date(lastSyncedAt).toLocaleString()}
+                >
+                  as of {formatRelativeTime(new Date(lastSyncedAt).getTime())}
+                </span>
+              )}
+            </div>
           </div>
           <form method="POST" action="/api/internal/auth/logout">
             <button
@@ -106,7 +126,9 @@ export default async function InternalEarningsPage() {
             </button>
           </form>
         </div>
+      </header>
 
+      <div className="max-w-5xl mx-auto px-5 pt-6 pb-10">
         {clustersError && (
           <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-6">
             Couldn&apos;t load clusters: {clustersError}

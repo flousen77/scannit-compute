@@ -73,3 +73,20 @@ export const HOSTING_MODE_BADGE_CLASS = {
 // ones — same manual price/GPU-count/onboarded-date fields, no live data
 // source. Both hosting modes use this fields-shape.
 export const CONTRACT_SHAPED_MODES = ['contract', 'forecast'];
+
+// Platforms whose realized revenue lags the work that produced it, and by how
+// much, in words fit for a tooltip.
+//
+// Lium pays two streams on different clocks: subnet emission accrues every
+// tempo (~72 min) and converts within hours, while rental fees settle two days
+// after they are earned. So a bar on a Lium chart is cash received that day,
+// mixing near-live emission with rental from two days earlier. Targon has no
+// such lag. Without saying so, a low Lium day reads as the machines
+// underperforming when it usually means a settlement hasn't landed yet.
+export const DELAYED_PAYOUT_NOTE = {
+  lium:
+    'Revenue is shown on the day the TAO was sold, not the day it was earned. ' +
+    'Lium rental fees settle 2 days after the rental, so a day here mixes ' +
+    'near-live emission with rental earned 2 days earlier. Compare over 7D ' +
+    'rather than 24h.',
+};

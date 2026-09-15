@@ -25,7 +25,10 @@ function isSameUTCDate(dateStr, referenceDateStr) {
   return new Date(dateStr).toISOString().slice(0, 10) === referenceDateStr;
 }
 
-export default function EarningsSparkline({ series }) {
+// `compact` drops the caption and min/max annotations and halves the height,
+// for the collapsed row where the line is a shape to scan rather than a chart
+// to read. Hover still works — the detail is there if you go looking.
+export default function EarningsSparkline({ series, compact = false }) {
   const svgRef = useRef(null);
   const [hoverIndex, setHoverIndex] = useState(null);
 
@@ -115,11 +118,13 @@ export default function EarningsSparkline({ series }) {
   const hovered = hoverIndex != null ? points[hoverIndex] : null;
 
   return (
-    <div className="mb-4">
-      <div className="text-xs text-[#94a3b8] mb-1.5">
-        Earnings trend · last {series.length} days
-      </div>
-      <div className="relative h-12">
+    <div className={compact ? '' : 'mb-4'}>
+      {!compact && (
+        <div className="text-xs text-[#94a3b8] mb-1.5">
+          Earnings trend · last {series.length} days
+        </div>
+      )}
+      <div className={`relative ${compact ? 'h-8' : 'h-12'}`}>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -182,13 +187,17 @@ export default function EarningsSparkline({ series }) {
         )}
 
         <div
-          className="absolute text-[10px] font-mono text-[#94a3b8] pointer-events-none whitespace-nowrap"
+          className={`absolute text-[10px] font-mono text-[#94a3b8] pointer-events-none whitespace-nowrap ${
+            compact ? 'hidden' : ''
+          }`}
           style={labelStyle(points[maxIndex], maxIndex, 'above')}
         >
           {usdFmt.format(points[maxIndex].usd_realized)}
         </div>
         <div
-          className="absolute text-[10px] font-mono text-[#94a3b8] pointer-events-none whitespace-nowrap"
+          className={`absolute text-[10px] font-mono text-[#94a3b8] pointer-events-none whitespace-nowrap ${
+            compact ? 'hidden' : ''
+          }`}
           style={labelStyle(points[minIndex], minIndex, 'below')}
         >
           {usdFmt.format(points[minIndex].usd_realized)}
