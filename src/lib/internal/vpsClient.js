@@ -262,9 +262,36 @@ export async function getNodes(netuid, uid, nodeKey = null) {
   };
 }
 
-export async function getDailyEarnings(netuid, uid, days = 30) {
+// `nodeKey` scales the series to one machine's share, so the chart and the
+// figures beside it describe the same thing. Without it both Lium cards drew
+// the whole UID's revenue — an identical $535.56 spike on each — while their
+// stat cards showed $257.68 and $307.50. A chart that disagrees with the
+// number under it is worse than no chart.
+//
+// One share across the window rather than per-day, matching aggregateRange:
+// the shape stays the uid's and the total becomes the node's, so the series
+// sums to the same figure the card reports.
+export async function getDailyEarnings(netuid, uid, days = 30, nodeKey = null) {
   const payload = await readEarningsPayload(netuid, uid);
-  return { series: payload.daily_series.slice(-days) };
+  const series = payload.daily_series.slice(-days);
+
+  if (!nodeKey) return { series };
+
+  const share = nodeShareOverRange(series, nodeKey);
+  if (share == null) {
+    // No reported split for this window: show nothing rather than the uid's
+    // revenue, which would overstate a single machine by the whole cluster.
+    return { series: series.map((d) => ({ ...d, usd_realized: 0, tao_earned: 0 })), node_share: null };
+  }
+
+  return {
+    series: series.map((d) => ({
+      ...d,
+      usd_realized: d.usd_realized * share,
+      tao_earned: d.tao_earned * share,
+    })),
+    node_share: share,
+  };
 }
 
 // Raw cached payload — used for onboarded_at / last_synced_at without a
