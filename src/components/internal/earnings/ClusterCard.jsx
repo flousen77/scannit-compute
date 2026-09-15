@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import EarningsStat from './EarningsStat';
 import EarningsSparkline from './EarningsSparkline';
 import TimeWindowToggle from './TimeWindowToggle';
@@ -11,6 +11,7 @@ import {
   SUBNET_PLATFORM_LABEL,
   HOSTING_MODE_LABEL,
   HOSTING_MODE_BADGE_CLASS,
+  DELAYED_PAYOUT_NOTE,
 } from '@/lib/internal/clusterOptions';
 import {
   deriveSubnetEarnings,
@@ -75,11 +76,24 @@ function ConvertToLiveControl({ onConvertTo }) {
   );
 }
 
-function ClusterHeader({ cluster, children, onEdit, onDelete, onConvertTo }) {
+function ClusterHeader({ cluster, children, onEdit, onDelete, onConvertTo, onToggleCollapsed }) {
   return (
     <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-white">{cluster.name}</h2>
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-expanded
+              title="Collapse"
+              className="text-[#94a3b8] hover:text-white transition-colors"
+            >
+              ▾
+            </button>
+          )}
+          {cluster.name}
+        </h2>
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-[#94a3b8]">
             {cluster.computeType}
@@ -94,6 +108,7 @@ function ClusterHeader({ cluster, children, onEdit, onDelete, onConvertTo }) {
               {SUBNET_PLATFORM_LABEL[cluster.subnet.platform] ?? cluster.subnet.platform}
               {' · UID '}
               {cluster.subnet.uidNumber}
+              <DelayedPayoutHint platform={cluster.subnet.platform} />
             </span>
           )}
           {/* Truncated because the full uuid is unreadable at this size, but
@@ -229,7 +244,128 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
   );
 }
 
-function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarnings, initialNodes, dailySeries, initialError, onEdit, onDelete }) {
+
+// A small (i) beside the platform badge on clusters whose revenue lands later
+// than it was earned. It matters most in the collapsed view: once cards are
+// one row each you scan down comparing them, and a Lium row sitting under a
+// Targon row invites reading them as the same kind of number when one trails
+// reality by two days.
+function DelayedPayoutHint({ platform }) {
+  const note = DELAYED_PAYOUT_NOTE[platform];
+  if (!note) return null;
+  return (
+    <span
+      title={note}
+      aria-label={note}
+      className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full border border-current text-[9px] font-semibold leading-none cursor-help align-middle"
+    >
+      i
+    </span>
+  );
+}
+
+function CompactMetric({ label, value, tone }) {
+  const toneClass =
+    tone === 'positive' ? 'text-brand-cyan' : tone === 'negative' ? 'text-red-400' : 'text-white';
+  return (
+    <div className="text-right min-w-0">
+      <div className="text-[10px] uppercase tracking-wide text-[#94a3b8] whitespace-nowrap">
+        {label}
+      </div>
+      <div className={`text-sm font-mono ${toneClass} whitespace-nowrap`}>{value}</div>
+    </div>
+  );
+}
+
+// One row per cluster: identity, shape, rate, profit, margin.
+//
+// Deliberately not MRR as well as rate — MRR is rate x cards x 720, so showing
+// both spends a column restating one number. Margin cannot be derived from the
+// others (it needs cost) and answers the question a compact list exists to ask:
+// which of these is worth owning.
+function CompactClusterRow({
+  cluster, dailySeries, earningsPerGpuPerHour, cardCount, statusSlot, onToggle, onEdit, onDelete,
+}) {
+  const { marginPercent, profitPerMonthProjected } = computeProfitMetrics({
+    earningsPerGpuPerHour,
+    cardCount,
+    cost: cluster.cost,
+  });
+  const profitTone =
+    profitPerMonthProjected == null ? undefined : profitPerMonthProjected >= 0 ? 'positive' : 'negative';
+
+  return (
+    <div className="bg-brand-panel border border-white/10 rounded-2xl px-4 py-3 hover:border-white/20 transition-colors">
+      <div className="flex items-center gap-3 sm:gap-5">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={false}
+          className="flex items-center gap-2 min-w-0 flex-1 text-left group"
+        >
+          <span className="text-[#94a3b8] group-hover:text-white transition-colors shrink-0">▸</span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-white truncate">{cluster.name}</span>
+            <span className="block text-[11px] text-[#94a3b8] truncate">
+              {cluster.computeType}
+              {cluster.subnet?.platform && (
+                <>
+                  {' · '}
+                  {SUBNET_PLATFORM_LABEL[cluster.subnet.platform] ?? cluster.subnet.platform}
+                  <DelayedPayoutHint platform={cluster.subnet.platform} />
+                </>
+              )}
+              {cluster.subnet?.nodeId && (
+                <span className="font-mono text-teal-400">
+                  {' · '}
+                  {shortNodeId(cluster.subnet.nodeId)}
+                </span>
+              )}
+              {!cluster.subnet && ` · ${HOSTING_MODE_LABEL[cluster.hostingMode]}`}
+            </span>
+          </span>
+        </button>
+
+        {/* Hidden on narrow screens: at row height the line is a shape, and
+            the numbers beside it carry the meaning. */}
+        <div className="hidden lg:block w-24 shrink-0">
+          {dailySeries?.length > 1 && <EarningsSparkline series={dailySeries} compact />}
+        </div>
+
+        {statusSlot}
+
+        <div className="flex items-center gap-4 sm:gap-6 shrink-0">
+          <CompactMetric
+            label="/GPU-hr"
+            value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
+          />
+          <CompactMetric
+            label="Profit / Mo"
+            value={profitPerMonthProjected != null ? usdFmt.format(profitPerMonthProjected) : '—'}
+            tone={profitTone}
+          />
+          <CompactMetric
+            label="Margin"
+            value={marginPercent != null ? `${marginPercent.toFixed(1)}%` : '—'}
+            tone={profitTone}
+          />
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2 text-xs text-[#94a3b8] shrink-0">
+          <button type="button" onClick={onEdit} className="hover:text-white transition-colors">
+            Edit
+          </button>
+          <span className="text-white/10">|</span>
+          <button type="button" onClick={onDelete} className="hover:text-red-400 transition-colors">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarnings, initialNodes, dailySeries, initialError, onEdit, onDelete, collapsed, onToggleCollapsed, globalWindow }) {
   const [activeWindow, setActiveWindow] = useState(initialWindow);
   const [customRange, setCustomRange] = useState(null);
   const [earnings, setEarnings] = useState(initialEarnings);
@@ -282,11 +418,37 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
     await fetchRange(buildRangeQuery('custom', onboardedAt, { since, until }));
   }
 
+  // Collapsed cards follow the dashboard's window so a stacked list is
+  // actually comparable — otherwise one row could be showing 24h beside
+  // another showing 30d, with no visible toggle to say so. Expanding a card
+  // hands its window back to the local toggle for a closer look.
+  useEffect(() => {
+    if (!collapsed || !globalWindow || globalWindow === activeWindow || !uid) return;
+    setActiveWindow(globalWindow);
+    setCustomRange(null);
+    fetchRange(buildRangeQuery(globalWindow, onboardedAt, null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalWindow, collapsed]);
+
   const { cardCount, earningsPerGpuPerHour } = deriveSubnetEarnings({ earnings, nodes });
+
+  if (collapsed) {
+    return (
+      <CompactClusterRow
+        cluster={cluster}
+        dailySeries={dailySeries}
+        earningsPerGpuPerHour={earningsPerGpuPerHour}
+        cardCount={cardCount}
+        onToggle={onToggleCollapsed}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    );
+  }
 
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
-      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete}>
+      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete} onToggleCollapsed={onToggleCollapsed}>
         <WindowBadge
           activeWindow={activeWindow}
           customRange={customRange}
@@ -355,7 +517,7 @@ function statusBadgeLabel(cluster, onboardedAt, renderedAtMs) {
   return `Since ${formatted}`;
 }
 
-function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete, onConvertTo }) {
+function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete, onConvertTo, collapsed, onToggleCollapsed }) {
   const { cardCount, onboardedAt } = cluster.contract || {};
   const { earningsPerGpuPerHour } = deriveContractEarnings({ contract: cluster.contract });
   const isForecast = cluster.hostingMode === 'forecast';
@@ -389,9 +551,31 @@ function ContractClusterCard({ cluster, renderedAtMs, onEdit, onDelete, onConver
   const monthlyCostTotal =
     costPerGpuPerHour != null && cardCount ? costPerGpuPerHour * cardCount * HOURS_PER_MONTH : null;
 
+  if (collapsed) {
+    const status = statusBadgeLabel(cluster, onboardedAt, renderedAtMs);
+    return (
+      <CompactClusterRow
+        cluster={cluster}
+        dailySeries={null}
+        earningsPerGpuPerHour={hasRequiredFields ? earningsPerGpuPerHour : null}
+        cardCount={cardCount}
+        statusSlot={
+          status ? (
+            <span className="hidden md:inline text-[10px] font-mono uppercase tracking-wide rounded-full px-2 py-0.5 border text-[#94a3b8] border-white/10 shrink-0">
+              {status}
+            </span>
+          ) : null
+        }
+        onToggle={onToggleCollapsed}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    );
+  }
+
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
-      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete} onConvertTo={onConvertTo}>
+      <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete} onConvertTo={onConvertTo} onToggleCollapsed={onToggleCollapsed}>
         {statusBadgeLabel(cluster, onboardedAt, renderedAtMs) && (
           <span className="text-xs font-mono uppercase tracking-wide rounded-full px-3 py-1 border text-[#94a3b8] border-white/10">
             {statusBadgeLabel(cluster, onboardedAt, renderedAtMs)}

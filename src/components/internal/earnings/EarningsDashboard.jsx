@@ -6,9 +6,37 @@ import ClusterCard from './ClusterCard';
 import ClusterFormModal from './ClusterFormModal';
 import PortfolioTotalsBar from './PortfolioTotalsBar';
 import MarketRateComparisonPanel from './MarketRateComparisonPanel';
-import { computePortfolioTotals } from '@/lib/internal/clusterEarnings';
+import {
+  computePortfolioTotals,
+  deriveSubnetEarnings,
+  deriveContractEarnings,
+  computeProfitMetrics,
+} from '@/lib/internal/clusterEarnings';
 import { netuidFor, HOSTING_MODES } from '@/lib/internal/clusterOptions';
 import { currentMonthRange, lastMonthRange } from '@/lib/internal/dateRanges';
+
+// Expanded cards are remembered per browser. Everything starts collapsed:
+// past three or four clusters the full cards are a screenful each, and the
+// list stops being scannable long before it stops being complete.
+const EXPANDED_STORAGE_KEY = 'internal-earnings-expanded-clusters';
+
+const CARD_WINDOWS = [
+  { value: '24h', label: 'Live' },
+  { value: '7d', label: '7D' },
+  { value: '30d', label: '30D' },
+];
+
+// Monthly profit, for ranking. Null when cost isn't tracked or the rate is
+// unknown — those sort last rather than as zero, since "not measured" and
+// "makes nothing" should not sit together.
+function projectedMonthlyProfit({ cluster, earnings, nodes }) {
+  const { cardCount, earningsPerGpuPerHour } =
+    cluster.hostingMode === 'subnet'
+      ? deriveSubnetEarnings({ earnings, nodes })
+      : deriveContractEarnings({ contract: cluster.contract });
+  return computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost: cluster.cost })
+    .profitPerMonthProjected;
+}
 
 function buildTotalsRangeQuery(basis) {
   if (basis === 'this_month') {
@@ -35,6 +63,39 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
   // that feeds the totals cards, since a 24h window is too noisy day to day
   // for a stable KPI. Default 7D, not Live, for the same reason.
   const [totalsBasis, setTotalsBasis] = useState('7d');
+
+  // Read after mount, never in the initial state: localStorage doesn't exist
+  // during SSR, and seeding from it there would hydrate to different markup
+  // than the server sent.
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [cardWindow, setCardWindow] = useState('24h');
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(EXPANDED_STORAGE_KEY);
+      if (raw) setExpandedIds(new Set(JSON.parse(raw)));
+    } catch {
+      // Private window, blocked storage, corrupt value — collapsed is a fine
+      // place to land, so there is nothing to recover from.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify([...expandedIds]));
+    } catch {
+      // Preference only; losing it costs a click.
+    }
+  }, [expandedIds]);
+
+  function toggleExpanded(id) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const [totalsSubnetData, setTotalsSubnetData] = useState({}); // cluster id -> { earnings, nodes }
   const [totalsLoading, setTotalsLoading] = useState(false);
 
@@ -107,13 +168,33 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
     return index === -1 ? HOSTING_MODES.length : index;
   };
 
+  // Within a segment, most profitable first. Creation order stops being
+  // useful once the list is scannable — ranked, the worst performer surfaces
+  // itself instead of sitting at position five. Clusters with no profit
+  // figure sort last: not measured is not the same as makes nothing.
   const filteredClusters = (
     segmentFilter === 'all'
       ? clustersWithData
       : clustersWithData.filter(({ cluster }) => cluster.hostingMode === segmentFilter)
   )
     .slice()
-    .sort((a, b) => hostingModeRank(a.cluster.hostingMode) - hostingModeRank(b.cluster.hostingMode));
+    .sort((a, b) => {
+      const byMode = hostingModeRank(a.cluster.hostingMode) - hostingModeRank(b.cluster.hostingMode);
+      if (byMode !== 0) return byMode;
+      const pa = projectedMonthlyProfit(a);
+      const pb = projectedMonthlyProfit(b);
+      if (pa == null && pb == null) return 0;
+      if (pa == null) return 1;
+      if (pb == null) return -1;
+      return pb - pa;
+    });
+
+  const expandedCount = filteredClusters.filter(({ cluster }) => expandedIds.has(cluster.id)).length;
+  const allExpanded = filteredClusters.length > 0 && expandedCount === filteredClusters.length;
+
+  function toggleAll() {
+    setExpandedIds(allExpanded ? new Set() : new Set(filteredClusters.map(({ cluster }) => cluster.id)));
+  }
 
   function closeForm() {
     setFormTarget(null);
@@ -167,7 +248,41 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
 
       <MarketRateComparisonPanel marketRates={marketRates} />
 
-      <div className="flex justify-end mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="text-xs text-[#94a3b8] border border-white/10 rounded-full px-3 py-1.5 hover:text-white hover:border-white/30 transition-colors"
+          >
+            {allExpanded ? 'Collapse all' : 'Expand all'}
+          </button>
+
+          {/* One window for every collapsed card. Per-card toggles are only
+              visible when a card is expanded, so a stacked list could
+              otherwise be comparing 24h against 30d with nothing on screen
+              saying so. */}
+          <div className="flex items-center gap-1 bg-black/30 border border-white/10 rounded-full p-0.5">
+            {CARD_WINDOWS.map((w) => (
+              <button
+                key={w.value}
+                type="button"
+                onClick={() => setCardWindow(w.value)}
+                className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                  cardWindow === w.value
+                    ? 'bg-white text-brand-dark font-semibold'
+                    : 'text-[#94a3b8] hover:text-white'
+                }`}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] text-[#94a3b8]">
+            applies to collapsed cards
+          </span>
+        </div>
+
         <button
           type="button"
           onClick={() => setFormTarget('new')}
@@ -197,6 +312,9 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
             onEdit={() => setFormTarget(cluster)}
             onDelete={() => handleDelete(cluster)}
             onConvertTo={(targetMode) => handleConvertTo(cluster, targetMode)}
+            collapsed={!expandedIds.has(cluster.id)}
+            onToggleCollapsed={() => toggleExpanded(cluster.id)}
+            globalWindow={cardWindow}
           />
         ))}
       </div>
