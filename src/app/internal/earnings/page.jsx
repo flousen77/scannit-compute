@@ -17,7 +17,12 @@ import EarningsDashboard from '@/components/internal/earnings/EarningsDashboard'
 // once at build time and serve that same stale snapshot to every visitor.
 export const dynamic = 'force-dynamic';
 
-const INITIAL_WINDOW = '24h';
+// 7D, not 24h. Lium settles rental two days after it is earned, so a 24h
+// window catches either a settlement lump or none depending on the hour and
+// swings wildly between the two. Seven days is long enough for the lag to
+// average out, and it is what the collapsed cards default to — matching them
+// means the page renders once instead of refetching every card on mount.
+const INITIAL_WINDOW = '7d';
 
 async function loadClusterData(cluster) {
   if (cluster.hostingMode !== 'subnet') {

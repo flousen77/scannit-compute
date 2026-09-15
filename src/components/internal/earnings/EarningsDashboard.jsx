@@ -68,7 +68,7 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
   // during SSR, and seeding from it there would hydrate to different markup
   // than the server sent.
   const [expandedIds, setExpandedIds] = useState(() => new Set());
-  const [cardWindow, setCardWindow] = useState('24h');
+  const [cardWindow, setCardWindow] = useState('7d');
 
   useEffect(() => {
     try {
@@ -304,7 +304,7 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
             cluster={cluster}
             onboardedAt={onboardedAt}
             renderedAtMs={renderedAtMs}
-            initialWindow="24h"
+            initialWindow="7d"
             initialEarnings={earnings}
             initialNodes={nodes}
             dailySeries={dailySeries}

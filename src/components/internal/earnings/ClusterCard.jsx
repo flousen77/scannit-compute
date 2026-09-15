@@ -301,7 +301,7 @@ function CompactClusterRow({
           type="button"
           onClick={onToggle}
           aria-expanded={false}
-          className="flex items-center gap-2 min-w-0 flex-1 text-left group"
+          className="flex items-center gap-2 min-w-0 flex-1 max-w-[280px] text-left group"
         >
           <span className="text-[#94a3b8] group-hover:text-white transition-colors shrink-0">▸</span>
           <span className="min-w-0">
@@ -328,7 +328,7 @@ function CompactClusterRow({
 
         {/* Hidden on narrow screens: at row height the line is a shape, and
             the numbers beside it carry the meaning. */}
-        <div className="hidden lg:block w-24 shrink-0">
+        <div className="hidden lg:block flex-1 min-w-[120px]">
           {dailySeries?.length > 1 && <EarningsSparkline series={dailySeries} compact />}
         </div>
 
