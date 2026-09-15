@@ -95,6 +95,26 @@ function liveNodeShare(dailySeries, nodeKey) {
   return nodeShareOverRange(withReports.slice(-LIVE_SHARE_LOOKBACK_DAYS), nodeKey);
 }
 
+// The first day this cluster ever realized revenue, across the whole series
+// — not just the requested window.
+//
+// Hours before it must not count toward an earnings rate. Revenue cannot be
+// realized before the first conversion, so charging those hours against the
+// rate measures nothing: Lium earned $93.42 and $424.63 on 09-12 and 09-13
+// by its own reporting, but its route was disabled, so the dashboard saw two
+// zero days. Those 48 hours halved its apparent rate and produced a $9,245
+// monthly loss that was an artefact of the switch being off.
+//
+// A zero day AFTER the first conversion is different — that is real downtime
+// and must drag the rate down, which is why this looks for the first realized
+// day in the full series rather than simply skipping leading zeros in range.
+function firstRealizedDate(dailySeries) {
+  for (const entry of dailySeries) {
+    if (entry.usd_realized > 0) return entry.date;
+  }
+  return null;
+}
+
 // Sums daily_series entries within [sinceDate, untilDate] (inclusive, UTC
 // calendar days). No assumption about how far back daily_series goes —
 // `since` in the result reflects whichever day the data actually starts
@@ -117,8 +137,19 @@ function aggregateRange(dailySeries, sinceDate, untilDate, nodeKey = null) {
   const usd_realized = bucketsInRange.reduce((sum, d) => sum + d.usd_realized, 0) * scale;
   const tao_earned = bucketsInRange.reduce((sum, d) => sum + d.tao_earned, 0) * scale;
   const fill_count = bucketsInRange.reduce((sum, d) => sum + (d.fill_count ?? 0), 0);
-  const hours = bucketsInRange.reduce((sum, d) => sum + hoursForBucket(d.date, today), 0);
-  const actualSince = bucketsInRange.length > 0 ? bucketsInRange[0].date : sinceDate;
+
+  // Only hours the cluster could actually have realized revenue in.
+  const firstRealized = firstRealizedDate(dailySeries);
+  const earningBuckets = firstRealized
+    ? bucketsInRange.filter((d) => d.date >= firstRealized)
+    : [];
+  const hours = earningBuckets.reduce((sum, d) => sum + hoursForBucket(d.date, today), 0);
+
+  // `since` reports the window actually measured, so a badge can say "SINCE
+  // SEP 14" rather than implying seven days of data that don't exist.
+  const actualSince = earningBuckets.length > 0
+    ? earningBuckets[0].date
+    : (bucketsInRange.length > 0 ? bucketsInRange[0].date : sinceDate);
 
   return {
     usd_realized,
