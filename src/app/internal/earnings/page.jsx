@@ -89,12 +89,15 @@ export default async function InternalEarningsPage() {
 
   return (
     <div className="bg-[#050508] text-white min-h-screen">
-      <div className="max-w-5xl mx-auto px-5 py-10">
-        {/* Logo sits in the existing header row rather than a new bar above
-            it: a second row would cost ~60px of vertical space on every screen
-            to convey nothing the page doesn't already say. Same hosted asset
-            as the public navbar, at the same 32px, so the two match. */}
-        <div className="flex items-center justify-between mb-8 gap-4">
+      {/* Sticky because of the "as of" timestamp. Every figure below is only
+          as good as that timestamp, and if the VPS sync stops there is no
+          other signal — a stale dashboard looks exactly like a fresh one once
+          the header has scrolled away. The logo shares this row rather than
+          getting a bar of its own: a second row would cost ~60px on every
+          screen to convey nothing the page doesn't already say. Same hosted
+          asset as the public navbar, at the same 32px, so the two match. */}
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#050508]/90 backdrop-blur-sm">
+        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <img
               src="https://imagedelivery.net/Ulul0QO-cXqPUi6uJcNN5g/a3924725-4e64-4885-0779-1aae85136500/public"
@@ -123,7 +126,9 @@ export default async function InternalEarningsPage() {
             </button>
           </form>
         </div>
+      </header>
 
+      <div className="max-w-5xl mx-auto px-5 pt-6 pb-10">
         {clustersError && (
           <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-6">
             Couldn&apos;t load clusters: {clustersError}
