@@ -95,6 +95,26 @@ function liveNodeShare(dailySeries, nodeKey) {
   return nodeShareOverRange(withReports.slice(-LIVE_SHARE_LOOKBACK_DAYS), nodeKey);
 }
 
+// The first day this cluster ever realized revenue, across the whole series
+// — not just the requested window.
+//
+// Hours before it must not count toward an earnings rate. Revenue cannot be
+// realized before the first conversion, so charging those hours against the
+// rate measures nothing: Lium earned $93.42 and $424.63 on 09-12 and 09-13
+// by its own reporting, but its route was disabled, so the dashboard saw two
+// zero days. Those 48 hours halved its apparent rate and produced a $9,245
+// monthly loss that was an artefact of the switch being off.
+//
+// A zero day AFTER the first conversion is different — that is real downtime
+// and must drag the rate down, which is why this looks for the first realized
+// day in the full series rather than simply skipping leading zeros in range.
+function firstRealizedDate(dailySeries) {
+  for (const entry of dailySeries) {
+    if (entry.usd_realized > 0) return entry.date;
+  }
+  return null;
+}
+
 // Sums daily_series entries within [sinceDate, untilDate] (inclusive, UTC
 // calendar days). No assumption about how far back daily_series goes —
 // `since` in the result reflects whichever day the data actually starts
@@ -117,8 +137,19 @@ function aggregateRange(dailySeries, sinceDate, untilDate, nodeKey = null) {
   const usd_realized = bucketsInRange.reduce((sum, d) => sum + d.usd_realized, 0) * scale;
   const tao_earned = bucketsInRange.reduce((sum, d) => sum + d.tao_earned, 0) * scale;
   const fill_count = bucketsInRange.reduce((sum, d) => sum + (d.fill_count ?? 0), 0);
-  const hours = bucketsInRange.reduce((sum, d) => sum + hoursForBucket(d.date, today), 0);
-  const actualSince = bucketsInRange.length > 0 ? bucketsInRange[0].date : sinceDate;
+
+  // Only hours the cluster could actually have realized revenue in.
+  const firstRealized = firstRealizedDate(dailySeries);
+  const earningBuckets = firstRealized
+    ? bucketsInRange.filter((d) => d.date >= firstRealized)
+    : [];
+  const hours = earningBuckets.reduce((sum, d) => sum + hoursForBucket(d.date, today), 0);
+
+  // `since` reports the window actually measured, so a badge can say "SINCE
+  // SEP 14" rather than implying seven days of data that don't exist.
+  const actualSince = earningBuckets.length > 0
+    ? earningBuckets[0].date
+    : (bucketsInRange.length > 0 ? bucketsInRange[0].date : sinceDate);
 
   return {
     usd_realized,
@@ -231,9 +262,36 @@ export async function getNodes(netuid, uid, nodeKey = null) {
   };
 }
 
-export async function getDailyEarnings(netuid, uid, days = 30) {
+// `nodeKey` scales the series to one machine's share, so the chart and the
+// figures beside it describe the same thing. Without it both Lium cards drew
+// the whole UID's revenue — an identical $535.56 spike on each — while their
+// stat cards showed $257.68 and $307.50. A chart that disagrees with the
+// number under it is worse than no chart.
+//
+// One share across the window rather than per-day, matching aggregateRange:
+// the shape stays the uid's and the total becomes the node's, so the series
+// sums to the same figure the card reports.
+export async function getDailyEarnings(netuid, uid, days = 30, nodeKey = null) {
   const payload = await readEarningsPayload(netuid, uid);
-  return { series: payload.daily_series.slice(-days) };
+  const series = payload.daily_series.slice(-days);
+
+  if (!nodeKey) return { series };
+
+  const share = nodeShareOverRange(series, nodeKey);
+  if (share == null) {
+    // No reported split for this window: show nothing rather than the uid's
+    // revenue, which would overstate a single machine by the whole cluster.
+    return { series: series.map((d) => ({ ...d, usd_realized: 0, tao_earned: 0 })), node_share: null };
+  }
+
+  return {
+    series: series.map((d) => ({
+      ...d,
+      usd_realized: d.usd_realized * share,
+      tao_earned: d.tao_earned * share,
+    })),
+    node_share: share,
+  };
 }
 
 // Raw cached payload — used for onboarded_at / last_synced_at without a

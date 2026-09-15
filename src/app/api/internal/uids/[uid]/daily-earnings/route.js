@@ -7,6 +7,7 @@ export async function GET(request, { params }) {
   }
 
   const { uid } = await params;
+  const nodeKey = request.nextUrl.searchParams.get('nodeKey') || null;
   const netuid = Number(request.nextUrl.searchParams.get('netuid'));
   if (!Number.isInteger(netuid)) {
     // Required, never defaulted: uid 162 exists on both SN4 and SN51, so a
@@ -17,7 +18,7 @@ export async function GET(request, { params }) {
   const days = Number(request.nextUrl.searchParams.get('days')) || 30;
 
   try {
-    const dailyEarnings = await getDailyEarnings(netuid, uid, days);
+    const dailyEarnings = await getDailyEarnings(netuid, uid, days, nodeKey);
     return Response.json(dailyEarnings);
   } catch (error) {
     return Response.json({ error: error.message }, { status: 502 });

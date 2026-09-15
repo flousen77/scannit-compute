@@ -38,7 +38,7 @@ async function loadClusterData(cluster) {
 
   // Independent of the earnings/nodes fetch below — a sparkline fetch failure
   // shouldn't take down the card's primary earnings display.
-  const dailySeries = await getDailyEarnings(netuid, uid, 30)
+  const dailySeries = await getDailyEarnings(netuid, uid, 30, nodeKey)
     .then((data) => data.series)
     .catch(() => null);
 

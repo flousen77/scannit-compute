@@ -114,9 +114,12 @@ function ClusterHeader({ cluster, children, onEdit, onDelete, onConvertTo, onTog
           {/* Truncated because the full uuid is unreadable at this size, but
               the first and last groups are enough to match a row in the
               provider portal. Full id on hover for copy/paste. */}
+          {/* An identifier, not a status: it never changes and carries no
+              good-or-bad meaning, so it reads as neutral like the compute
+              type beside it. Colour is reserved for things that vary. */}
           {cluster.subnet?.nodeId && (
             <span
-              className="text-xs px-2 py-0.5 rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-400 font-mono"
+              className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-[#94a3b8] font-mono"
               title={cluster.subnet.nodeId}
             >
               {shortNodeId(cluster.subnet.nodeId)}
@@ -264,6 +267,63 @@ function DelayedPayoutHint({ platform }) {
   );
 }
 
+
+// "14h" / "3d 2h" — a duration you read at a glance, not a timestamp you
+// have to subtract in your head.
+function formatDuration(sinceIso, nowMs) {
+  if (!sinceIso) return null;
+  // Lium returns naive UTC timestamps with no zone suffix; parsed as-is they
+  // would be read as local time and come out hours wrong.
+  const iso = /[Zz]|[+-]\d{2}:\d{2}$/.test(sinceIso) ? sinceIso : `${sinceIso}Z`;
+  const ms = nowMs - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+// Rented/idle plus how long it has held. This is the operational fact the
+// earnings figures can't show: a node idle for three days is about to drag a
+// week's numbers down, and nothing else on the card says so yet.
+function RentalStatus({ node, nowMs, compact = false }) {
+  if (!node?.rental_state) return null;
+  const rented = node.rental_state === 'rented';
+  const held = formatDuration(node.rental_since, nowMs);
+
+  // The listed price is not what an active rental pays — Lium locks the rate
+  // at booking — so when they differ, show both rather than the one that
+  // isn't being paid.
+  const locked = rented ? node.rental_rate_per_gpu : null;
+  const listed = node.price_per_gpu;
+  const priceDiffers = locked != null && listed != null && Math.abs(locked - listed) > 0.005;
+
+  // Cyan, not green: it is already the dashboard's positive/money colour
+  // (profit, MRR accent), so a working node speaks the same language as the
+  // figures it produces. Green would be a fourth status colour carrying no
+  // meaning the palette doesn't already have — and teal is taken by the
+  // Subnet badge sitting immediately beside this one.
+  const tone = rented
+    ? 'text-brand-cyan border-brand-cyan/30 bg-brand-cyan/10'
+    : 'text-amber-400 border-amber-400/30 bg-amber-400/10';
+
+  const title = priceDiffers
+    ? `Listed at $${listed.toFixed(2)}/GPU-hr, but this rental is locked at $${locked.toFixed(2)} — Lium fixes the rate when a rental is booked, so a price change only applies to the next one.`
+    : undefined;
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono rounded-full px-2 py-0.5 border ${tone}`} title={title}>
+      <span>{rented ? 'Rented' : 'Idle'}</span>
+      {held && <span className="opacity-70">{held}</span>}
+      {!compact && locked != null && (
+        <span className="opacity-70">${locked.toFixed(2)}</span>
+      )}
+      {!compact && priceDiffers && (
+        <span className="opacity-70 line-through">${listed.toFixed(2)}</span>
+      )}
+    </span>
+  );
+}
+
 function CompactMetric({ label, value, tone }) {
   const toneClass =
     tone === 'positive' ? 'text-brand-cyan' : tone === 'negative' ? 'text-red-400' : 'text-white';
@@ -284,7 +344,8 @@ function CompactMetric({ label, value, tone }) {
 // others (it needs cost) and answers the question a compact list exists to ask:
 // which of these is worth owning.
 function CompactClusterRow({
-  cluster, dailySeries, earningsPerGpuPerHour, cardCount, statusSlot, onToggle, onEdit, onDelete,
+  cluster, dailySeries, earningsPerGpuPerHour, cardCount, statusSlot, node, nowMs,
+  onToggle, onEdit, onDelete,
 }) {
   const { marginPercent, profitPerMonthProjected } = computeProfitMetrics({
     earningsPerGpuPerHour,
@@ -316,10 +377,16 @@ function CompactClusterRow({
                 </>
               )}
               {cluster.subnet?.nodeId && (
-                <span className="font-mono text-teal-400">
+                <span className="font-mono">
                   {' · '}
                   {shortNodeId(cluster.subnet.nodeId)}
                 </span>
+              )}
+              {node && (
+                <>
+                  {' '}
+                  <RentalStatus node={node} nowMs={nowMs} compact />
+                </>
               )}
               {!cluster.subnet && ` · ${HOSTING_MODE_LABEL[cluster.hostingMode]}`}
             </span>
@@ -368,7 +435,7 @@ function CompactClusterRow({
   );
 }
 
-function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarnings, initialNodes, dailySeries, initialError, onEdit, onDelete, collapsed, onToggleCollapsed, globalWindow }) {
+function SubnetClusterCard({ cluster, onboardedAt, renderedAtMs, initialWindow, initialEarnings, initialNodes, dailySeries, initialError, onEdit, onDelete, collapsed, onToggleCollapsed, globalWindow }) {
   const [activeWindow, setActiveWindow] = useState(initialWindow);
   const [customRange, setCustomRange] = useState(null);
   const [earnings, setEarnings] = useState(initialEarnings);
@@ -435,6 +502,11 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
 
   const { cardCount, earningsPerGpuPerHour } = deriveSubnetEarnings({ earnings, nodes });
 
+  // For a node-scoped cluster the payload carries exactly one node; for a
+  // whole-uid cluster there is no single rental state to show.
+  const node =
+    cluster.subnet?.nodeId && nodes?.nodes?.length === 1 ? nodes.nodes[0] : null;
+
   if (collapsed) {
     return (
       <CompactClusterRow
@@ -442,6 +514,8 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
         dailySeries={dailySeries}
         earningsPerGpuPerHour={earningsPerGpuPerHour}
         cardCount={cardCount}
+        node={node}
+        nowMs={renderedAtMs}
         onToggle={onToggleCollapsed}
         onEdit={onEdit}
         onDelete={onDelete}
@@ -452,6 +526,7 @@ function SubnetClusterCard({ cluster, onboardedAt, initialWindow, initialEarning
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl p-6">
       <ClusterHeader cluster={cluster} onEdit={onEdit} onDelete={onDelete} onToggleCollapsed={onToggleCollapsed}>
+        {node && <RentalStatus node={node} nowMs={renderedAtMs} />}
         <WindowBadge
           activeWindow={activeWindow}
           customRange={customRange}
