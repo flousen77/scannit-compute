@@ -114,9 +114,12 @@ function ClusterHeader({ cluster, children, onEdit, onDelete, onConvertTo, onTog
           {/* Truncated because the full uuid is unreadable at this size, but
               the first and last groups are enough to match a row in the
               provider portal. Full id on hover for copy/paste. */}
+          {/* An identifier, not a status: it never changes and carries no
+              good-or-bad meaning, so it reads as neutral like the compute
+              type beside it. Colour is reserved for things that vary. */}
           {cluster.subnet?.nodeId && (
             <span
-              className="text-xs px-2 py-0.5 rounded-full border border-teal-400/30 bg-teal-400/10 text-teal-400 font-mono"
+              className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-[#94a3b8] font-mono"
               title={cluster.subnet.nodeId}
             >
               {shortNodeId(cluster.subnet.nodeId)}
@@ -294,8 +297,13 @@ function RentalStatus({ node, nowMs, compact = false }) {
   const listed = node.price_per_gpu;
   const priceDiffers = locked != null && listed != null && Math.abs(locked - listed) > 0.005;
 
+  // Cyan, not green: it is already the dashboard's positive/money colour
+  // (profit, MRR accent), so a working node speaks the same language as the
+  // figures it produces. Green would be a fourth status colour carrying no
+  // meaning the palette doesn't already have — and teal is taken by the
+  // Subnet badge sitting immediately beside this one.
   const tone = rented
-    ? 'text-teal-400 border-teal-400/30 bg-teal-400/10'
+    ? 'text-brand-cyan border-brand-cyan/30 bg-brand-cyan/10'
     : 'text-amber-400 border-amber-400/30 bg-amber-400/10';
 
   const title = priceDiffers
@@ -369,7 +377,7 @@ function CompactClusterRow({
                 </>
               )}
               {cluster.subnet?.nodeId && (
-                <span className="font-mono text-teal-400">
+                <span className="font-mono">
                   {' · '}
                   {shortNodeId(cluster.subnet.nodeId)}
                 </span>
