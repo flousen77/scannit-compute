@@ -181,7 +181,7 @@ function WindowBadge({ activeWindow, customRange, earnings, onboardedAt }) {
 
 // Shared by subnet and contract cards so cost/profit math can't drift between
 // the two — both feed it an earnings-per-GPU-per-hour figure, however derived.
-function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount, cost, loading, node }) {
+function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount, cost, loading, node, renderedAtMs }) {
   const {
     revenuePerMonthProjectedTotal: earningsPerMonthProjected,
     costPerGpuPerHour,
@@ -223,8 +223,26 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           value={usdFmt.format(usdRealized)}
           accent
           note={
-            node?.pending_rental_usd > 0
-              ? `${usdFmt.format(node.pending_rental_usd)} owed · all windows`
+            node?.pending_rental_usd > 0 ? (
+              <>
+                <div>{usdFmt.format(node.pending_rental_usd)} owed · all windows</div>
+                {/* Past due and the balance still standing is the signal
+                    worth catching: it means Lium has stopped settling, and
+                    another day of rental queues up behind it every day it
+                    continues. */}
+                <div>
+                  {formatUntil(node.pending_next_payout, renderedAtMs)
+                    ? `next payout ${formatUntil(node.pending_next_payout, renderedAtMs)}`
+                    : 'payout due'}
+                </div>
+              </>
+            ) : undefined
+          }
+          noteTone={
+            node?.pending_rental_usd > 0 &&
+            node?.pending_next_payout &&
+            !formatUntil(node.pending_next_payout, renderedAtMs)
+              ? 'warning'
               : undefined
           }
           noteTitle={
@@ -305,6 +323,20 @@ function formatDuration(sinceIso, nowMs) {
   const hours = Math.floor(ms / 3600000);
   if (hours < 24) return `${hours}h`;
   return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+// "in 4h" / "in 2d 3h", or null once the moment has passed.
+//
+// Computed from renderedAtMs rather than Date.now(): this is a Client
+// Component, so a live clock would produce different markup during SSR and
+// hydration. The whole page is a snapshot anyway — the header says how old.
+function formatUntil(untilIso, nowMs) {
+  if (!untilIso) return null;
+  const ms = Date.parse(untilIso) - nowMs;
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const hours = Math.round(ms / 3600000);
+  if (hours < 24) return `in ${Math.max(hours, 1)}h`;
+  return `in ${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
 // Rented/idle plus how long it has held. This is the operational fact the
@@ -586,6 +618,7 @@ function SubnetClusterCard({ cluster, onboardedAt, renderedAtMs, initialWindow, 
           cost={cluster.cost}
           loading={loading}
           node={node}
+          renderedAtMs={renderedAtMs}
         />
       )}
     </div>
