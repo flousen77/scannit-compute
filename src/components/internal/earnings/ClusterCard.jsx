@@ -181,7 +181,7 @@ function WindowBadge({ activeWindow, customRange, earnings, onboardedAt }) {
 
 // Shared by subnet and contract cards so cost/profit math can't drift between
 // the two — both feed it an earnings-per-GPU-per-hour figure, however derived.
-function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount, cost, loading }) {
+function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount, cost, loading, node }) {
   const {
     revenuePerMonthProjectedTotal: earningsPerMonthProjected,
     costPerGpuPerHour,
@@ -207,7 +207,26 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
           unit="/hr"
         />
-        <EarningsStat label="USD Realized" value={usdFmt.format(usdRealized)} accent />
+        {/* Pending sits under realized rather than beside it: it is the same
+            kind of money one step earlier, and the headline figure must stay
+            strictly cash-basis. Lium settles rental two days after the work,
+            so this is real revenue the cluster has earned and not yet been
+            paid — invisible everywhere until now. */}
+        <EarningsStat
+          label="USD Realized"
+          value={usdFmt.format(usdRealized)}
+          accent
+          note={
+            node?.pending_rental_usd > 0
+              ? `+ ${usdFmt.format(node.pending_rental_usd)} pending`
+              : undefined
+          }
+          noteTitle={
+            node?.pending_rental_usd > 0
+              ? `Rental earned but not yet paid, across ${node.pending_rental_days} day(s). Lium settles rental 2 days after the work.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Not included in USD Realized, which only counts money already sold on Kraken.`
+              : undefined
+          }
+        />
         <EarningsStat
           label="MRR (Projected)"
           value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
@@ -560,6 +579,7 @@ function SubnetClusterCard({ cluster, onboardedAt, renderedAtMs, initialWindow, 
           cardCount={cardCount}
           cost={cluster.cost}
           loading={loading}
+          node={node}
         />
       )}
     </div>
