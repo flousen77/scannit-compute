@@ -223,20 +223,13 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           value={usdFmt.format(usdRealized)}
           accent
           note={
-            node?.pending_rental_usd > 0 ? (
-              <>
-                <div>{usdFmt.format(node.pending_rental_usd)} owed · all windows</div>
-                {/* Past due and the balance still standing is the signal
-                    worth catching: it means Lium has stopped settling, and
-                    another day of rental queues up behind it every day it
-                    continues. */}
-                <div>
-                  {formatUntil(node.pending_next_payout, renderedAtMs)
-                    ? `next payout ${formatUntil(node.pending_next_payout, renderedAtMs)}`
-                    : 'payout due'}
-                </div>
-              </>
-            ) : undefined
+            node?.pending_rental_usd > 0
+              ? `${usdFmt.format(node.pending_rental_usd)} owed · ${
+                  formatUntil(node.pending_next_payout, renderedAtMs)
+                    ? `pays ${formatUntil(node.pending_next_payout, renderedAtMs)}`
+                    : 'payout due'
+                }`
+              : undefined
           }
           noteTone={
             node?.pending_rental_usd > 0 &&
@@ -247,7 +240,7 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           }
           noteTitle={
             node?.pending_rental_usd > 0
-              ? `A current balance, not a figure for this window — it is the same on Live, 7D and 30D. Rental earned but not yet paid, across ${node.pending_rental_days} day(s); Lium settles rental 2 days after the work.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Excluded from USD Realized, which counts only money already sold on Kraken.`
+              ? `A current balance, not a figure for this window — the same on Live, 7D and 30D. Rental earned but not yet paid, across ${node.pending_rental_days} day(s); Lium settles rental 2 days after the work.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Excluded from USD Realized, which counts only money already sold on Kraken.`
               : undefined
           }
         />
