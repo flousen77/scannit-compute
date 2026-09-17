@@ -181,7 +181,7 @@ function WindowBadge({ activeWindow, customRange, earnings, onboardedAt }) {
 
 // Shared by subnet and contract cards so cost/profit math can't drift between
 // the two — both feed it an earnings-per-GPU-per-hour figure, however derived.
-function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount, cost, loading, node, renderedAtMs }) {
+function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, earningsBasis, cardCount, cost, loading, node, renderedAtMs }) {
   const {
     revenuePerMonthProjectedTotal: earningsPerMonthProjected,
     costPerGpuPerHour,
@@ -191,6 +191,7 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
   } = computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost });
 
   const payoutDue = isPayoutDue(node, renderedAtMs);
+  const accrual = earningsBasis === 'earned';
 
   return (
     <>
@@ -205,15 +206,22 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           unit={taoEarned != null ? 'TAO' : undefined}
         />
         <EarningsStat
-          label="Earnings / hr"
+          label={accrual ? 'Earned / hr' : 'Earnings / hr'}
           value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
           unit="/hr"
+          title={accrual ? ACCRUAL_RATE_TITLE : undefined}
         />
-        <EarningsStat label="USD Realized" value={usdFmt.format(usdRealized)} accent />
+        <EarningsStat
+          label="USD Realized"
+          value={usdFmt.format(usdRealized)}
+          accent
+          title={accrual ? ACCRUAL_REALIZED_TITLE : undefined}
+        />
         <EarningsStat
           label="MRR (Projected)"
           value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
           unit="/mo"
+          title={accrual ? ACCRUAL_RATE_TITLE : undefined}
         />
       </div>
 
@@ -269,16 +277,19 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
             label="Profit / hr"
             value={profitPerGpuPerHour != null ? usdFmt.format(profitPerGpuPerHour) : '—'}
             unit="/hr"
+            title={accrual ? ACCRUAL_RATE_TITLE : undefined}
           />
           <EarningsStat
             label="Margin %"
             value={marginPercent != null ? `${marginPercent.toFixed(1)}%` : '—'}
+            title={accrual ? ACCRUAL_RATE_TITLE : undefined}
           />
           <EarningsStat
             label="Profit / Mo (Projected)"
             value={profitPerMonthProjected != null ? usdFmt.format(profitPerMonthProjected) : '—'}
             unit="/mo"
             tone={profitPerMonthProjected != null ? (profitPerMonthProjected >= 0 ? 'positive' : 'negative') : undefined}
+            title={accrual ? ACCRUAL_RATE_TITLE : undefined}
           />
         </div>
       )}
@@ -338,6 +349,21 @@ function formatUntil(untilIso, nowMs) {
 // Rented/idle plus how long it has held. This is the operational fact the
 // earnings figures can't show: a node idle for three days is about to drag a
 // week's numbers down, and nothing else on the card says so yet.
+// The rate metrics and USD Realized answer different questions on a
+// delayed-settlement platform, so they are computed on different bases. Said
+// in the tooltips rather than in another line of text on the card.
+const ACCRUAL_RATE_TITLE =
+  'Earning rate, from rental and emission the provider reports as earned in ' +
+  'this window. Not from cash banked: rental settles 2 days later in daily ' +
+  'lumps, so a cash rate measures when Kraken filled, not what the machines ' +
+  'did. See USD Realized for money actually received.';
+
+const ACCRUAL_REALIZED_TITLE =
+  'Cash actually banked in this window, from the Kraken ledger. Lower than ' +
+  'the earning rate beside it while rental settlement catches up — the ' +
+  'difference is the owed balance. The two converge once the 2-day lag ' +
+  'reaches steady state.';
+
 // One definition of "the payout time has passed", so the collapsed row and
 // the expanded card can never disagree about which node is showing amber.
 function isPayoutDue(node, nowMs) {
@@ -383,11 +409,11 @@ function RentalStatus({ node, nowMs, compact = false }) {
   );
 }
 
-function CompactMetric({ label, value, tone }) {
+function CompactMetric({ label, value, tone, title }) {
   const toneClass =
     tone === 'positive' ? 'text-brand-cyan' : tone === 'negative' ? 'text-red-400' : 'text-white';
   return (
-    <div className="text-right min-w-0">
+    <div className="text-right min-w-0" title={title}>
       <div className="text-[10px] uppercase tracking-wide text-[#94a3b8] whitespace-nowrap">
         {label}
       </div>
@@ -403,7 +429,7 @@ function CompactMetric({ label, value, tone }) {
 // others (it needs cost) and answers the question a compact list exists to ask:
 // which of these is worth owning.
 function CompactClusterRow({
-  cluster, dailySeries, earningsPerGpuPerHour, cardCount, statusSlot, node, nowMs,
+  cluster, dailySeries, earningsPerGpuPerHour, earningsBasis, cardCount, statusSlot, node, nowMs,
   onToggle, onEdit, onDelete,
 }) {
   const { marginPercent, profitPerMonthProjected } = computeProfitMetrics({
@@ -413,6 +439,7 @@ function CompactClusterRow({
   });
   const profitTone =
     profitPerMonthProjected == null ? undefined : profitPerMonthProjected >= 0 ? 'positive' : 'negative';
+  const rateTitle = earningsBasis === 'earned' ? ACCRUAL_RATE_TITLE : undefined;
 
   return (
     <div className="bg-brand-panel border border-white/10 rounded-2xl px-4 py-3 hover:border-white/20 transition-colors">
@@ -476,11 +503,13 @@ function CompactClusterRow({
           <CompactMetric
             label="/GPU-hr"
             value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
+            title={rateTitle}
           />
           <CompactMetric
             label="Profit / Mo"
             value={profitPerMonthProjected != null ? usdFmt.format(profitPerMonthProjected) : '—'}
             tone={profitTone}
+            title={rateTitle}
           />
           <CompactMetric
             label="Margin"
@@ -568,7 +597,7 @@ function SubnetClusterCard({ cluster, onboardedAt, renderedAtMs, initialWindow, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalWindow, collapsed]);
 
-  const { cardCount, earningsPerGpuPerHour } = deriveSubnetEarnings({ earnings, nodes });
+  const { cardCount, earningsPerGpuPerHour, earningsBasis } = deriveSubnetEarnings({ earnings, nodes });
 
   // For a node-scoped cluster the payload carries exactly one node; for a
   // whole-uid cluster there is no single rental state to show.
@@ -581,6 +610,7 @@ function SubnetClusterCard({ cluster, onboardedAt, renderedAtMs, initialWindow, 
         cluster={cluster}
         dailySeries={dailySeries}
         earningsPerGpuPerHour={earningsPerGpuPerHour}
+        earningsBasis={earningsBasis}
         cardCount={cardCount}
         node={node}
         nowMs={renderedAtMs}
@@ -625,6 +655,7 @@ function SubnetClusterCard({ cluster, onboardedAt, renderedAtMs, initialWindow, 
           taoEarned={earnings.tao_earned}
           usdRealized={earnings.usd_realized}
           earningsPerGpuPerHour={earningsPerGpuPerHour}
+          earningsBasis={earningsBasis}
           cardCount={cardCount}
           cost={cluster.cost}
           loading={loading}

@@ -15,17 +15,48 @@ export function getCostPerGpuPerHour(cost, cardCount) {
   return cardCount ? cost.value / HOURS_PER_MONTH / cardCount : null;
 }
 
+// Rate metrics run on ACCRUAL where the provider reports it, cash everywhere
+// else. Not a preference — a cash rate is not a rate.
+//
+// Lium settles rental two days after the work, in daily lumps, so cash
+// arriving on a given day belongs to a different day's hours. Dividing one by
+// the other measures settlement timing, not the machines: on 09-14 the same
+// two boxes read $1.24/GPU-hr and on 09-15 $0.54/GPU-hr while doing identical
+// work, and the 7D card showed -85% margin on hardware earning $1.65 against
+// $1.40 cost. Targon converts every six hours with no lag, so its cash is
+// already a fair proxy and it reports no earned figure to switch to anyway.
+//
+// Checked against the ledger before trusting it: over 09-12..09-17, banked
+// $1,148.37 plus $1,500.21 still owed came to within 1.1% of the $2,679.26
+// Lium reported as earned. Good enough for a rate; never used as banked cash,
+// which is why usd_realized is untouched here and the daily bars stay cash.
 export function deriveSubnetEarnings({ earnings, nodes }) {
   const cardCount = nodes?.combined?.avg_cards ?? null;
-  const earningsPerGpuPerHour =
-    earnings?.hours && cardCount ? earnings.usd_realized / (earnings.hours * cardCount) : null;
-  return { cardCount, earningsPerGpuPerHour };
+  if (!earnings?.hours || !cardCount) {
+    return { cardCount, earningsPerGpuPerHour: null, earningsBasis: null };
+  }
+
+  const accrual = earnings.earnings_per_hour_usd_earned;
+  if (accrual != null) {
+    return {
+      cardCount,
+      earningsPerGpuPerHour: accrual / cardCount,
+      earningsBasis: 'earned',
+    };
+  }
+
+  return {
+    cardCount,
+    earningsPerGpuPerHour: earnings.usd_realized / (earnings.hours * cardCount),
+    earningsBasis: 'cash',
+  };
 }
 
 export function deriveContractEarnings({ contract }) {
   return {
     cardCount: contract?.cardCount ?? null,
     earningsPerGpuPerHour: contract?.pricePerHourUsd ?? null,
+    earningsBasis: 'contract',
   };
 }
 
