@@ -190,9 +190,7 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
     profitPerMonthProjected,
   } = computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost });
 
-  const payoutDue =
-    node?.pending_rental_usd > 0 &&
-    !formatUntil(node.pending_next_payout, renderedAtMs);
+  const payoutDue = isPayoutDue(node, renderedAtMs);
 
   return (
     <>
@@ -227,8 +225,10 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           read. Out here there is horizontal room for a plain sentence, and
           the tiles stay purely realized figures.
 
-          Kept off the collapsed row entirely: that view exists to be
-          scanned. */}
+          The collapsed row carries the balance only, no timing: that view
+          exists to be scanned, and the default state is all-collapsed, so
+          leaving it off entirely meant an unpaid balance was invisible in
+          the view you actually land on. */}
       {node?.pending_rental_usd > 0 && (
         <div
           className={`text-[11px] mt-3 ${
@@ -338,6 +338,12 @@ function formatUntil(untilIso, nowMs) {
 // Rented/idle plus how long it has held. This is the operational fact the
 // earnings figures can't show: a node idle for three days is about to drag a
 // week's numbers down, and nothing else on the card says so yet.
+// One definition of "the payout time has passed", so the collapsed row and
+// the expanded card can never disagree about which node is showing amber.
+function isPayoutDue(node, nowMs) {
+  return node?.pending_rental_usd > 0 && !formatUntil(node.pending_next_payout, nowMs);
+}
+
 function RentalStatus({ node, nowMs, compact = false }) {
   if (!node?.rental_state) return null;
   const rented = node.rental_state === 'rented';
@@ -440,6 +446,15 @@ function CompactClusterRow({
                   {' '}
                   <RentalStatus node={node} nowMs={nowMs} compact />
                 </>
+              )}
+              {node?.pending_rental_usd > 0 && (
+                <span
+                  className={isPayoutDue(node, nowMs) ? 'text-amber-400' : undefined}
+                  title={`Rental earned but not yet paid, across ${node.pending_rental_days} day(s). Expand for the next payout. Excluded from realized revenue.`}
+                >
+                  {' · owed '}
+                  <span className="font-mono">{usdFmt.format(node.pending_rental_usd)}</span>
+                </span>
               )}
               {!cluster.subnet && ` · ${HOSTING_MODE_LABEL[cluster.hostingMode]}`}
             </span>
