@@ -190,6 +190,10 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
     profitPerMonthProjected,
   } = computeProfitMetrics({ earningsPerGpuPerHour, cardCount, cost });
 
+  const payoutDue =
+    node?.pending_rental_usd > 0 &&
+    !formatUntil(node.pending_next_payout, renderedAtMs);
+
   return (
     <>
       <div
@@ -207,53 +211,48 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
           unit="/hr"
         />
-        {/* Pending sits under realized because it is the same money one step
-            earlier, and the headline must stay strictly cash-basis.
-            
-            But it is a BALANCE, not a flow: "owed right now", against a
-            figure that means "received during this window". It deliberately
-            does not respond to the window selector, so it says so — without
-            the label it reads as part of the window and looks wrong on Live.
-            Filtering it by window would barely differ anyway: only the last
-            ~3 days are ever unpaid, so for 7D or 30D it is the same number,
-            and on Live it would show today's partial accrual instead of what
-            is actually owed. */}
-        <EarningsStat
-          label="USD Realized"
-          value={usdFmt.format(usdRealized)}
-          accent
-          note={
-            node?.pending_rental_usd > 0
-              ? `${usdFmt.format(node.pending_rental_usd)} owed · ${
-                  formatUntil(node.pending_next_payout, renderedAtMs)
-                    ? `${
-                        node.pending_next_usd != null
-                          ? usdFmt.format(node.pending_next_usd)
-                          : 'next'
-                      } ${formatUntil(node.pending_next_payout, renderedAtMs)}`
-                    : 'payout due'
-                }`
-              : undefined
-          }
-          noteTone={
-            node?.pending_rental_usd > 0 &&
-            node?.pending_next_payout &&
-            !formatUntil(node.pending_next_payout, renderedAtMs)
-              ? 'warning'
-              : undefined
-          }
-          noteTitle={
-            node?.pending_rental_usd > 0
-              ? `A current balance, not a figure for this window — the same on Live, 7D and 30D. Rental earned but not yet paid, across ${node.pending_rental_days} day(s). Payouts are daily with a 2-day lag, so the next one settles the oldest day only — not the whole balance.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Excluded from USD Realized, which counts only money already sold on Kraken.`
-              : undefined
-          }
-        />
+        <EarningsStat label="USD Realized" value={usdFmt.format(usdRealized)} accent />
         <EarningsStat
           label="MRR (Projected)"
           value={earningsPerMonthProjected != null ? usdFmt.format(earningsPerMonthProjected) : '—'}
           unit="/mo"
         />
       </div>
+
+
+      {/* Its own line rather than inside a tile. Tried it as a sub-line on
+          USD Realized and it made that tile taller than the other three,
+          throwing the row out of alignment — and squeezing balance, next
+          amount and timing into one narrow column left it dense and hard to
+          read. Out here there is horizontal room for a plain sentence, and
+          the tiles stay purely realized figures.
+
+          Kept off the collapsed row entirely: that view exists to be
+          scanned. */}
+      {node?.pending_rental_usd > 0 && (
+        <div
+          className={`text-[11px] mt-3 ${
+            payoutDue ? 'text-amber-400' : 'text-[#94a3b8]'
+          }`}
+          title={`A current balance, not a figure for the selected window. Rental earned but not yet paid, across ${node.pending_rental_days} day(s). Payouts are daily with a 2-day lag, so the next settles the oldest day only. Excluded from USD Realized, which counts only money already sold on Kraken.`}
+        >
+          Rental owed{' '}
+          <span className="font-mono text-white">
+            {usdFmt.format(node.pending_rental_usd)}
+          </span>
+          {payoutDue ? (
+            ' · payout due'
+          ) : (
+            <>
+              {' · next payout '}
+              {node.pending_next_usd != null && (
+                <span className="font-mono">{usdFmt.format(node.pending_next_usd)}</span>
+              )}{' '}
+              {formatUntil(node.pending_next_payout, renderedAtMs)}
+            </>
+          )}
+        </div>
+      )}
 
       {cost && (
         <div
