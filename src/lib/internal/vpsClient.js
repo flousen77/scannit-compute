@@ -95,6 +95,53 @@ function liveNodeShare(dailySeries, nodeKey) {
   return nodeShareOverRange(withReports.slice(-LIVE_SHARE_LOOKBACK_DAYS), nodeKey);
 }
 
+// What the provider says a node EARNED on a day, as opposed to what we
+// banked. Lium reports this per executor; Targon reports nothing of the kind,
+// so this returns null there and every accrual figure downstream stays null.
+//
+// null and 0 are different answers: "no reporting exists" must fall back to
+// cash, while "reported nothing" is a real zero that should drag a rate down.
+function earnedForNode(entry, nodeKey) {
+  const reported = entry?.node_reported_usd;
+  if (!reported) return null;
+  if (nodeKey) return reported[nodeKey] ?? 0;
+  return Object.values(reported).reduce((sum, usd) => sum + usd, 0);
+}
+
+function sumEarned(entries, nodeKey) {
+  let total = 0;
+  let sawAny = false;
+  for (const entry of entries) {
+    const usd = earnedForNode(entry, nodeKey);
+    if (usd == null) continue;
+    sawAny = true;
+    total += usd;
+  }
+  return sawAny ? total : null;
+}
+
+// Earned over the trailing 24 hours, which straddles two UTC calendar days.
+// Today's row is taken whole (it only covers the hours elapsed so far) and
+// yesterday's is taken pro rata for the rest, so this lines up with the 24h
+// window rather than with "since midnight".
+function earnedTrailing24h(dailySeries, nodeKey) {
+  const today = todayUTCDateStr();
+  const byDate = new Map((dailySeries || []).map((d) => [d.date, d]));
+
+  const todayEarned = earnedForNode(byDate.get(today), nodeKey);
+  if (todayEarned == null) return null;
+
+  const elapsed = hoursForBucket(today, today);
+  const yesterday = new Date(Date.parse(`${today}T00:00:00.000Z`) - 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const yesterdayEarned = earnedForNode(byDate.get(yesterday), nodeKey);
+  const remainder =
+    yesterdayEarned == null ? 0 : (yesterdayEarned * Math.max(24 - elapsed, 0)) / 24;
+
+  return todayEarned + remainder;
+}
+
 // The first day this cluster ever realized revenue, across the whole series
 // — not just the requested window.
 //
@@ -151,12 +198,20 @@ function aggregateRange(dailySeries, sinceDate, untilDate, nodeKey = null) {
     ? earningBuckets[0].date
     : (bucketsInRange.length > 0 ? bucketsInRange[0].date : sinceDate);
 
+  // Summed over `earningBuckets`, NOT over the whole range: it has to share a
+  // denominator with `hours` or the rate is earnings from six days divided by
+  // four days of clock.
+  const usd_earned = sumEarned(earningBuckets, nodeKey);
+
   return {
     usd_realized,
+    usd_earned,
     tao_earned,
     fill_count,
     hours,
     earnings_per_hour_usd: hours ? usd_realized / hours : null,
+    earnings_per_hour_usd_earned:
+      hours && usd_earned != null ? usd_earned / hours : null,
     node_share: share,
     since: actualSince,
     until: untilDate,
@@ -220,9 +275,15 @@ export async function getEarnings(netuid, uid, range, nodeKey = null) {
           earnings_per_hour_usd:
             live.earnings_per_hour_usd == null ? null : live.earnings_per_hour_usd * share,
         };
+    // Not scaled by `share`: node_reported_usd is already per machine, so it
+    // is a direct read rather than a split of a cluster total.
+    const usd_earned = earnedTrailing24h(payload.daily_series || [], nodeKey);
+
     return {
       netuid: Number(netuid), uid: Number(uid), node_key: nodeKey,
       node_share: share, window: '24h', hours: 24, source: 'cache', ...scaled,
+      usd_earned,
+      earnings_per_hour_usd_earned: usd_earned == null ? null : usd_earned / 24,
     };
   }
 

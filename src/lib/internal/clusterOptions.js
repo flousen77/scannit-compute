@@ -85,8 +85,10 @@ export const CONTRACT_SHAPED_MODES = ['contract', 'forecast'];
 // underperforming when it usually means a settlement hasn't landed yet.
 export const DELAYED_PAYOUT_NOTE = {
   lium:
-    'Revenue is shown on the day the TAO was sold, not the day it was earned. ' +
-    'Lium rental fees settle 2 days after the rental, so a day here mixes ' +
-    'near-live emission with rental earned 2 days earlier. Compare over 7D ' +
-    'rather than 24h.',
+    'Lium rental settles 2 days after the rental, in daily lumps. So the two ' +
+    'kinds of number on this row are on different bases: rate figures ' +
+    '(/GPU-hr, MRR, Profit, Margin) use what Lium reports as EARNED in the ' +
+    'window, while USD Realized and the daily bars are cash actually banked ' +
+    'through Kraken. The gap between them is the owed balance, and it closes ' +
+    'as settlement catches up.',
 };
