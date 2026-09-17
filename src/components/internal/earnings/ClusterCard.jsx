@@ -207,23 +207,29 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           value={earningsPerGpuPerHour != null ? usdFmt.format(earningsPerGpuPerHour) : '—'}
           unit="/hr"
         />
-        {/* Pending sits under realized rather than beside it: it is the same
-            kind of money one step earlier, and the headline figure must stay
-            strictly cash-basis. Lium settles rental two days after the work,
-            so this is real revenue the cluster has earned and not yet been
-            paid — invisible everywhere until now. */}
+        {/* Pending sits under realized because it is the same money one step
+            earlier, and the headline must stay strictly cash-basis.
+            
+            But it is a BALANCE, not a flow: "owed right now", against a
+            figure that means "received during this window". It deliberately
+            does not respond to the window selector, so it says so — without
+            the label it reads as part of the window and looks wrong on Live.
+            Filtering it by window would barely differ anyway: only the last
+            ~3 days are ever unpaid, so for 7D or 30D it is the same number,
+            and on Live it would show today's partial accrual instead of what
+            is actually owed. */}
         <EarningsStat
           label="USD Realized"
           value={usdFmt.format(usdRealized)}
           accent
           note={
             node?.pending_rental_usd > 0
-              ? `+ ${usdFmt.format(node.pending_rental_usd)} pending`
+              ? `${usdFmt.format(node.pending_rental_usd)} owed · all windows`
               : undefined
           }
           noteTitle={
             node?.pending_rental_usd > 0
-              ? `Rental earned but not yet paid, across ${node.pending_rental_days} day(s). Lium settles rental 2 days after the work.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Not included in USD Realized, which only counts money already sold on Kraken.`
+              ? `A current balance, not a figure for this window — it is the same on Live, 7D and 30D. Rental earned but not yet paid, across ${node.pending_rental_days} day(s); Lium settles rental 2 days after the work.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Excluded from USD Realized, which counts only money already sold on Kraken.`
               : undefined
           }
         />
