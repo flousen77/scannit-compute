@@ -226,7 +226,11 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
             node?.pending_rental_usd > 0
               ? `${usdFmt.format(node.pending_rental_usd)} owed · ${
                   formatUntil(node.pending_next_payout, renderedAtMs)
-                    ? `pays ${formatUntil(node.pending_next_payout, renderedAtMs)}`
+                    ? `${
+                        node.pending_next_usd != null
+                          ? usdFmt.format(node.pending_next_usd)
+                          : 'next'
+                      } ${formatUntil(node.pending_next_payout, renderedAtMs)}`
                     : 'payout due'
                 }`
               : undefined
@@ -240,7 +244,7 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, cardCount
           }
           noteTitle={
             node?.pending_rental_usd > 0
-              ? `A current balance, not a figure for this window — the same on Live, 7D and 30D. Rental earned but not yet paid, across ${node.pending_rental_days} day(s); Lium settles rental 2 days after the work.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Excluded from USD Realized, which counts only money already sold on Kraken.`
+              ? `A current balance, not a figure for this window — the same on Live, 7D and 30D. Rental earned but not yet paid, across ${node.pending_rental_days} day(s). Payouts are daily with a 2-day lag, so the next one settles the oldest day only — not the whole balance.${node.pending_next_payout ? ` Next payout ${new Date(node.pending_next_payout).toLocaleString()}.` : ''} Excluded from USD Realized, which counts only money already sold on Kraken.`
               : undefined
           }
         />
