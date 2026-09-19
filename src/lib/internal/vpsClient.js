@@ -162,6 +162,24 @@ function firstRealizedDate(dailySeries) {
   return null;
 }
 
+// The first day a node reports anything is its onboarding day: it existed
+// for part of that day and earned accordingly, and nothing in this payload
+// says which part. Charging it a full 24h understates its rate exactly as
+// the pre-conversion hours did — the third RTX joined at 22:32 on 09-18,
+// earned $2.53 in its remaining 90 minutes, and read $0.10/GPU-hr against
+// $1.52 actual, which the card rendered as -1320% margin.
+//
+// So the rate window starts at the node's first COMPLETE day. The lost
+// crumb only leaves the rate; usd_realized sums the whole range and is
+// untouched. While that onboarding day is all there is, it is kept — a
+// diluted number beats no number on a node someone just added.
+function nodeRateStartDate(dailySeries, nodeKey) {
+  if (!nodeKey) return null;
+  const reported = dailySeries.filter((entry) => earnedForNode(entry, nodeKey));
+  if (reported.length <= 1) return reported[0]?.date ?? null;
+  return reported[1].date;
+}
+
 // Sums daily_series entries within [sinceDate, untilDate] (inclusive, UTC
 // calendar days). No assumption about how far back daily_series goes —
 // `since` in the result reflects whichever day the data actually starts
@@ -185,10 +203,14 @@ function aggregateRange(dailySeries, sinceDate, untilDate, nodeKey = null) {
   const tao_earned = bucketsInRange.reduce((sum, d) => sum + d.tao_earned, 0) * scale;
   const fill_count = bucketsInRange.reduce((sum, d) => sum + (d.fill_count ?? 0), 0);
 
-  // Only hours the cluster could actually have realized revenue in.
+  // Only hours the cluster could actually have realized revenue in, and for
+  // a node-scoped cluster, only hours it existed for.
   const firstRealized = firstRealizedDate(dailySeries);
-  const earningBuckets = firstRealized
-    ? bucketsInRange.filter((d) => d.date >= firstRealized)
+  const nodeStart = nodeRateStartDate(dailySeries, nodeKey);
+  const rateStart =
+    nodeStart && firstRealized && nodeStart > firstRealized ? nodeStart : firstRealized;
+  const earningBuckets = rateStart
+    ? bucketsInRange.filter((d) => d.date >= rateStart)
     : [];
   const hours = earningBuckets.reduce((sum, d) => sum + hoursForBucket(d.date, today), 0);
 

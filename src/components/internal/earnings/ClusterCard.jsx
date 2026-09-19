@@ -250,12 +250,16 @@ function EarningsRows({ taoEarned, usdRealized, earningsPerGpuPerHour, earningsB
           </span>
           {payoutDue ? (
             ' · payout due'
+          ) : !node.pending_next_usd ? (
+            // A node onboarded after the day being settled has a balance but
+            // no share of the next arrival. Saying "next payout  in 9h" with
+            // the amount missing reads as a bug; saying nothing is due is the
+            // actual fact.
+            ' · none of it in the next payout'
           ) : (
             <>
               {' · next payout '}
-              {node.pending_next_usd != null && (
-                <span className="font-mono">{usdFmt.format(node.pending_next_usd)}</span>
-              )}{' '}
+              <span className="font-mono">{usdFmt.format(node.pending_next_usd)}</span>{' '}
               {formatUntil(node.pending_next_payout, renderedAtMs)}
             </>
           )}
