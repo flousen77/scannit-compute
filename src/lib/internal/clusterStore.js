@@ -84,6 +84,26 @@ function normalizeClusterInput(input) {
   throw new Error('hostingMode must be "subnet", "contract", or "forecast"');
 }
 
+// Two clusters on one node double-count it. Per-node revenue is split by each
+// day's reported share, and those shares sum to 1 across the uid's nodes --
+// that is exactly what stops node-scoped clusters from inflating the uid
+// total. Claim a node twice and it contributes twice to MRR, profit and the
+// portfolio bar, with nothing anywhere reporting a problem.
+//
+// Converting the "Chirag RTX" forecast to live on 2026-09-25 did this, onto a
+// node that already had a cluster, and the only signal was two cards with the
+// same name.
+function assertNodeNotClaimed(clusters, nodeId, ownId = null) {
+  if (!nodeId) return;
+  const claimed = clusters.find((c) => c.subnet?.nodeId === nodeId && c.id !== ownId);
+  if (claimed) {
+    throw new Error(
+      `That node is already tracked by "${claimed.name}". ` +
+      'Two clusters on one node would count its revenue twice.'
+    );
+  }
+}
+
 export async function listClusters() {
   return readClusters();
 }
@@ -91,6 +111,7 @@ export async function listClusters() {
 export async function createCluster(input) {
   const normalized = normalizeClusterInput(input);
   const clusters = await readClusters();
+  assertNodeNotClaimed(clusters, normalized.subnet?.nodeId);
   const cluster = { id: crypto.randomUUID(), ...normalized };
   clusters.push(cluster);
   await writeClusters(clusters);
@@ -102,6 +123,7 @@ export async function updateCluster(id, input) {
   const clusters = await readClusters();
   const index = clusters.findIndex((c) => c.id === id);
   if (index === -1) return null;
+  assertNodeNotClaimed(clusters, normalized.subnet?.nodeId, id);
 
   clusters[index] = { id, ...normalized };
   await writeClusters(clusters);
