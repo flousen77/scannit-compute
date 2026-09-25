@@ -12,7 +12,7 @@ import {
   deriveContractEarnings,
   computeProfitMetrics,
 } from '@/lib/internal/clusterEarnings';
-import { netuidFor, HOSTING_MODES } from '@/lib/internal/clusterOptions';
+import { netuidFor, HOSTING_MODES, shortNodeId } from '@/lib/internal/clusterOptions';
 import { currentMonthRange, lastMonthRange } from '@/lib/internal/dateRanges';
 
 // Expanded cards are remembered per browser. Everything starts collapsed:
@@ -70,6 +70,8 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
     return byNode;
   }, [clustersWithData]);
 
+  const [pendingDelete, setPendingDelete] = useState(null); // cluster awaiting confirmation
+  const [deleteError, setDeleteError] = useState(null);
   const [formTarget, setFormTarget] = useState(null); // null | 'new' | cluster object
   const [convertTarget, setConvertTarget] = useState(null); // null | { cluster, targetMode }
   const [segmentFilter, setSegmentFilter] = useState('all'); // 'all' | 'subnet' | 'contract' | 'forecast'
@@ -224,15 +226,31 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
     router.refresh();
   }
 
-  async function handleDelete(cluster) {
-    if (!window.confirm(`Delete "${cluster.name}"? This can't be undone.`)) return;
+  // Confirmation is rendered in the page, not through window.confirm.
+  //
+  // Chrome offers "prevent this page from creating additional dialogs" after a
+  // few native dialogs, and once it is ticked confirm() returns false with no
+  // dialog shown. The handler then returned before it ever fetched, so Delete
+  // did nothing at all: no request, no error, no change. The alert() on the
+  // failure path was suppressed by the same setting, so even a 401 would have
+  // looked identical. A delete button whose failure mode is silence is worse
+  // than no delete button.
+  function handleDelete(cluster) {
+    setDeleteError(null);
+    setPendingDelete(cluster);
+  }
+
+  async function confirmDelete() {
+    const cluster = pendingDelete;
+    if (!cluster) return;
+    setPendingDelete(null);
 
     const res = await fetch(`/api/internal/clusters/${cluster.id}`, { method: 'DELETE' });
     if (res.ok) {
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Failed to delete cluster');
+      setDeleteError(`Could not delete "${cluster.name}": ${data.error || res.status}`);
     }
   }
 
@@ -309,6 +327,44 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
           + Add Cluster
         </button>
       </div>
+
+      {/* Names are not unique -- two clusters were briefly both called
+          "Chirag RTX" -- so the node id disambiguates which one is going. */}
+      {pendingDelete && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+          <span className="text-sm text-white">
+            Delete <span className="font-semibold">{pendingDelete.name}</span>
+            {pendingDelete.subnet?.nodeId && (
+              <span className="text-[#94a3b8] font-mono text-xs">
+                {' '}({shortNodeId(pendingDelete.subnet.nodeId)})
+              </span>
+            )}
+            ? This can&apos;t be undone.
+          </span>
+          <div className="flex items-center gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => setPendingDelete(null)}
+              className="px-3 py-1.5 rounded-full border border-white/15 text-[#94a3b8] hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              className="px-3 py-1.5 rounded-full bg-red-500 text-white font-semibold hover:bg-red-400 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {deleteError}
+        </div>
+      )}
 
       <div className="space-y-4">
         {filteredClusters.length === 0 && (
