@@ -386,6 +386,17 @@ function RentalStatus({ node, nowMs, compact = false }) {
   const listed = node.price_per_gpu;
   const priceDiffers = locked != null && listed != null && Math.abs(locked - listed) > 0.005;
 
+  // A rented node shows the rate its rental was struck at, an idle one its
+  // listing. Only the locked rate used to render, and an idle node has none,
+  // so a machine earning nothing displayed no price at all -- when the listing
+  // is exactly the number that decides whether it gets rented.
+  //
+  // The locked rate can also go briefly missing on a rental booked minutes
+  // ago, before the provider's daily records carry it. The poller derives it
+  // from revenue_per_hour now, so the fallback below is a safety net rather
+  // than the usual path.
+  const shownPrice = rented ? (locked ?? listed) : listed;
+
   // Cyan, not green: it is already the dashboard's positive/money colour
   // (profit, MRR accent), so a working node speaks the same language as the
   // figures it produces. Green would be a fourth status colour carrying no
@@ -397,14 +408,16 @@ function RentalStatus({ node, nowMs, compact = false }) {
 
   const title = priceDiffers
     ? `Listed at $${listed.toFixed(2)}/GPU-hr, but this rental is locked at $${locked.toFixed(2)} — Lium fixes the rate when a rental is booked, so a price change only applies to the next one.`
-    : undefined;
+    : !rented && listed != null
+      ? `Listed at $${listed.toFixed(2)}/GPU-hr. Nothing earns that until someone rents it.`
+      : undefined;
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono rounded-full px-2 py-0.5 border ${tone}`} title={title}>
       <span>{rented ? 'Rented' : 'Idle'}</span>
       {held && <span className="opacity-70">{held}</span>}
-      {!compact && locked != null && (
-        <span className="opacity-70">${locked.toFixed(2)}</span>
+      {!compact && shownPrice != null && (
+        <span className="opacity-70">${shownPrice.toFixed(2)}</span>
       )}
       {!compact && priceDiffers && (
         <span className="opacity-70 line-through">${listed.toFixed(2)}</span>
