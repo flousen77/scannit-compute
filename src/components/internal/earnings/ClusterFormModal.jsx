@@ -144,7 +144,7 @@ function DateField({ label, value, onChange }) {
   );
 }
 
-export default function ClusterFormModal({ cluster, initialHostingMode, onClose, onSaved }) {
+export default function ClusterFormModal({ cluster, initialHostingMode, nodeNames = {}, onClose, onSaved }) {
   const [form, setForm] = useState(() => initialFormState(cluster, initialHostingMode));
   const { nodeOptions, nodesLoading } = useNodeOptions(form.subnetPlatform, form.subnetUidNumber);
   const [error, setError] = useState(null);
@@ -286,8 +286,13 @@ export default function ClusterFormModal({ cluster, initialHostingMode, onClose,
                     <option value="">
                       {nodesLoading ? 'Loading nodes…' : 'Whole UID (all nodes combined)'}
                     </option>
+                    {/* Name first, because that is what you are looking for.
+                        The uuid stays because it is the only thing that matches
+                        against Lium's own portal, and a machine with no cluster
+                        yet has nothing else to identify it by. */}
                     {nodeOptions.map((n) => (
                       <option key={n.node_key} value={n.node_key}>
+                        {nodeNames[n.node_key] ? `${nodeNames[n.node_key]} · ` : ''}
                         {shortNodeId(n.node_key)} — {n.cards}× {n.compute_type}
                         {n.location_id ? ` (${n.location_id})` : ''}
                       </option>

@@ -52,6 +52,24 @@ function buildTotalsRangeQuery(basis) {
 
 export default function EarningsDashboard({ clustersWithData, renderedAtMs, marketRates }) {
   const router = useRouter();
+
+  // The node picker shows uuids, which say nothing about which machine is
+  // which. Rather than a second place to name things, a node that already
+  // belongs to a cluster borrows that cluster's name: one source of truth,
+  // nothing to keep in sync, and renaming the cluster renames it everywhere.
+  //
+  // These names never leave /internal. Clusters are read only by this page and
+  // by /api/internal/clusters, both behind the shared password, and no public
+  // route touches node ids or cluster names.
+  const nodeNames = useMemo(() => {
+    const byNode = {};
+    for (const { cluster } of clustersWithData) {
+      const nodeId = cluster.subnet?.nodeId;
+      if (nodeId && !byNode[nodeId]) byNode[nodeId] = cluster.name;
+    }
+    return byNode;
+  }, [clustersWithData]);
+
   const [formTarget, setFormTarget] = useState(null); // null | 'new' | cluster object
   const [convertTarget, setConvertTarget] = useState(null); // null | { cluster, targetMode }
   const [segmentFilter, setSegmentFilter] = useState('all'); // 'all' | 'subnet' | 'contract' | 'forecast'
@@ -323,6 +341,7 @@ export default function EarningsDashboard({ clustersWithData, renderedAtMs, mark
         <ClusterFormModal
           cluster={activeModalCluster}
           initialHostingMode={convertTarget?.targetMode}
+          nodeNames={nodeNames}
           onClose={closeForm}
           onSaved={handleSaved}
         />
