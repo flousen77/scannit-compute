@@ -173,11 +173,45 @@ function firstRealizedDate(dailySeries) {
 // crumb only leaves the rate; usd_realized sums the whole range and is
 // untouched. While that onboarding day is all there is, it is kept — a
 // diluted number beats no number on a node someone just added.
+function nodeReportedEntries(dailySeries, nodeKey) {
+  return dailySeries.filter((entry) => earnedForNode(entry, nodeKey));
+}
+
 function nodeRateStartDate(dailySeries, nodeKey) {
   if (!nodeKey) return null;
-  const reported = dailySeries.filter((entry) => earnedForNode(entry, nodeKey));
+  const reported = nodeReportedEntries(dailySeries, nodeKey);
   if (reported.length <= 1) return reported[0]?.date ?? null;
   return reported[1].date;
+}
+
+// The first day a node reported anything, which is the earliest it can have
+// contributed to any cash at all.
+function firstNodeReportedDate(dailySeries, nodeKey) {
+  if (!nodeKey) return null;
+  return nodeReportedEntries(dailySeries, nodeKey)[0]?.date ?? null;
+}
+
+// Clip a set of day buckets to the node's own lifetime.
+//
+// nodeShareOverRange is a ratio: this node's reported earnings over every
+// node's, across the days given. Hand it days from before the node existed and
+// the denominator carries a month of other machines' history while the
+// numerator carries hours, so the node comes out with a small share of a large
+// number instead of a fair share of a small one.
+//
+// Chirag RTX made this concrete. It went live at 01:34 on 2026-09-25, earned
+// $94.71 of idle emission that day and nothing before, and over a 30-day window
+// that computed as 1.308% of everything the uid had realized that month. The
+// sparkline then drew a week of history for a machine thirteen hours old, and
+// USD Realized credited it with cash produced before it was plugged in.
+//
+// Clipped, the same node is measured against the one day it existed: 14.8% of
+// that day's earnings, applied to that day's cash.
+function clipToNodeLifetime(buckets, dailySeries, nodeKey) {
+  if (!nodeKey) return buckets;
+  const first = firstNodeReportedDate(dailySeries, nodeKey);
+  if (!first) return buckets;
+  return buckets.filter((d) => d.date >= first);
 }
 
 // Sums daily_series entries within [sinceDate, untilDate] (inclusive, UTC
@@ -192,10 +226,14 @@ function nodeRateStartDate(dailySeries, nodeKey) {
 // counting, no invented money.
 function aggregateRange(dailySeries, sinceDate, untilDate, nodeKey = null) {
   const today = todayUTCDateStr();
-  const bucketsInRange = dailySeries.filter((d) => d.date >= sinceDate && d.date <= untilDate);
+  const rangeBuckets = dailySeries.filter((d) => d.date >= sinceDate && d.date <= untilDate);
 
-  // One share for the whole range, so it cannot matter which day inside it
-  // a given sale settled on.
+  // Clipped to the node's lifetime first: a share computed against days the
+  // node did not exist is a ratio with mismatched terms. See clipToNodeLifetime.
+  const bucketsInRange = clipToNodeLifetime(rangeBuckets, dailySeries, nodeKey);
+
+  // One share for the whole (clipped) range, so it cannot matter which day
+  // inside it a given sale settled on.
   const share = nodeShareOverRange(bucketsInRange, nodeKey);
   const scale = share ?? 0;
 
@@ -356,9 +394,14 @@ export async function getNodes(netuid, uid, nodeKey = null) {
 // sums to the same figure the card reports.
 export async function getDailyEarnings(netuid, uid, days = 30, nodeKey = null) {
   const payload = await readEarningsPayload(netuid, uid);
-  const series = payload.daily_series.slice(-days);
+  const windowed = payload.daily_series.slice(-days);
 
-  if (!nodeKey) return { series };
+  if (!nodeKey) return { series: windowed };
+
+  // Days before the node existed are not zero-earning days for it, they are
+  // days it has no claim on. Dropping them keeps the chart a timeline instead
+  // of spreading one day's revenue backwards across a month.
+  const series = clipToNodeLifetime(windowed, payload.daily_series, nodeKey);
 
   const share = nodeShareOverRange(series, nodeKey);
   if (share == null) {
